@@ -116,4 +116,9 @@ export const demoPalettes = {
   "text-scramble": { hue: HUES.ember, mode: "dark" as const, intensity: 1 as const },
   "elastic-toggle": { hue: HUES.slate, mode: "dark" as const, intensity: 1 as const },
   "fisheye-text": { hue: HUES.portrait, mode: "dark" as const, intensity: 1 as const },
+  "figpal-cursor": { hue: HUES.sage, mode: "dark" as const, intensity: 1 as const },
+  "cursor-morph": { hue: HUES.forest, mode: "dark" as const, intensity: 1 as const },
+  "theme-sidebar": { hue: HUES.table, mode: "dark" as const, intensity: 1 as const },
+  "task-ranking": { hue: HUES.rose, mode: "dark" as const, intensity: 1 as const },
+  "dvd-bounce": { hue: HUES.pizza, mode: "dark" as const, intensity: 0 as const },
 } as const;
