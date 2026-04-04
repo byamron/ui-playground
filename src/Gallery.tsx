@@ -38,6 +38,36 @@ const demos = [
     description: "Type freely — letters stretch wide on hover with spring physics",
     bg: bg(demoPalettes["fisheye-text"]),
   },
+  {
+    path: "/figpal-cursor",
+    title: "Figpal Cursor",
+    description: "A companion character trails your cursor with lerp inertia",
+    bg: bg(demoPalettes["figpal-cursor"]),
+  },
+  {
+    path: "/cursor-morph",
+    title: "Cursor Morph",
+    description: "Inverted circle collapses into an arrow on card hover",
+    bg: bg(demoPalettes["cursor-morph"]),
+  },
+  {
+    path: "/theme-sidebar",
+    title: "Theme Sidebar",
+    description: "Color, intensity, and mode — expandable sidebar with glass pills",
+    bg: bg(demoPalettes["theme-sidebar"]),
+  },
+  {
+    path: "/task-ranking",
+    title: "Task Ranking",
+    description: "Binary search pairwise comparison to prioritize tasks",
+    bg: bg(demoPalettes["task-ranking"]),
+  },
+  {
+    path: "/dvd-bounce",
+    title: "DVD Bounce",
+    description: "Classic bouncing logo with squash physics, corner celebrations, and mouse influence",
+    bg: bg(demoPalettes["dvd-bounce"]),
+  },
 ];
 
 const galleryBg = bg({ hue: 220, mode: "dark", intensity: 0 });

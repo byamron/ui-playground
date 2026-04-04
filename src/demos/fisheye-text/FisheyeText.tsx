@@ -1,111 +1,23 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { bg, demoPalettes, text as textColors } from "../../palette";
+import { bg, demoPalettes } from "../../palette";
 
 const FONT_SIZE = 56;
 const BG = bg(demoPalettes["fisheye-text"]);
 const PLACEHOLDER = "Start typing...";
-
-function FisheyeWord({
-  word,
-  globalOffset,
-  cursorPos,
-  onCharClick,
-}: {
-  word: string;
-  globalOffset: number;
-  cursorPos: number;
-  onCharClick: (globalIndex: number) => void;
-}) {
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const letters = word.split("");
-
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        position: "relative",
-        whiteSpace: "nowrap",
-        alignItems: "baseline",
-        overflow: "visible",
-      }}
-    >
-      {letters.map((char, i) => {
-        const globalIndex = globalOffset + i;
-        let scaleX = 1;
-        let pushAmount = 0;
-
-        if (hoveredIndex !== null) {
-          const distance = Math.abs(i - hoveredIndex);
-          if (i === hoveredIndex) {
-            scaleX = 2;
-          } else {
-            const direction = Math.sign(i - hoveredIndex);
-            const maxPush = FONT_SIZE * 0.5;
-            pushAmount = (1 / (distance + 1)) * maxPush * direction;
-            const edgeFalloff = Math.max(
-              0,
-              1 - distance / (letters.length - 1)
-            );
-            scaleX *= 1 - 0.5 * edgeFalloff;
-          }
-        }
-
-        const showCursor = cursorPos === globalIndex;
-
-        return (
-          <span key={i} style={{ position: "relative", display: "inline-flex" }}>
-            {showCursor && <Cursor />}
-            <motion.span
-              onMouseEnter={() => setHoveredIndex(i)}
-              onMouseLeave={() => setHoveredIndex(null)}
-              onClick={() => onCharClick(globalIndex)}
-              animate={{ scaleX, x: pushAmount }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              layout
-              style={{
-                display: "inline-block",
-                transformOrigin: "center",
-                cursor: "text",
-              }}
-            >
-              {char}
-            </motion.span>
-          </span>
-        );
-      })}
-    </span>
-  );
-}
-
-function Cursor() {
-  return (
-    <motion.span
-      initial={{ opacity: 0 }}
-      animate={{ opacity: [1, 1, 0, 0] }}
-      transition={{ duration: 1, repeat: Infinity, ease: "steps(1)" }}
-      style={{
-        position: "absolute",
-        left: -1,
-        top: "0.1em",
-        width: 2,
-        height: "0.85em",
-        background: "#fff",
-        borderRadius: 1,
-        zIndex: 10,
-        pointerEvents: "none",
-      }}
-    />
-  );
-}
+const SPRING_STIFFNESS = 300;
+const SPRING_DAMPING = 30;
+const MAX_SCALE = 2;
+const PUSH_RANGE = 4; // how many neighbors get pushed
 
 export function FisheyeText() {
   const [text, setText] = useState("");
   const [cursorPos, setCursorPos] = useState(0);
+  const [hoveredChar, setHoveredChar] = useState<number | null>(null);
   const hiddenRef = useRef<HTMLTextAreaElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const charRefs = useRef<Map<number, HTMLSpanElement>>(new Map());
+  const springsRef = useRef<Map<number, { scaleX: number; x: number; targetScaleX: number; targetX: number; velScaleX: number; velX: number }>>(new Map());
+  const rafRef = useRef<number>(0);
 
-  // Keep hidden textarea focused
   const focusInput = useCallback(() => {
     hiddenRef.current?.focus();
   }, []);
@@ -114,6 +26,83 @@ export function FisheyeText() {
     focusInput();
   }, [focusInput]);
 
+  // Spring physics loop
+  useEffect(() => {
+    const step = () => {
+      const dt = 1 / 60;
+      let needsUpdate = false;
+
+      springsRef.current.forEach((spring, idx) => {
+        // scaleX spring
+        const forceScaleX = -SPRING_STIFFNESS * (spring.scaleX - spring.targetScaleX) - SPRING_DAMPING * spring.velScaleX;
+        spring.velScaleX += forceScaleX * dt;
+        spring.scaleX += spring.velScaleX * dt;
+
+        // x spring
+        const forceX = -SPRING_STIFFNESS * (spring.x - spring.targetX) - SPRING_DAMPING * spring.velX;
+        spring.velX += forceX * dt;
+        spring.x += spring.velX * dt;
+
+        if (Math.abs(spring.scaleX - spring.targetScaleX) > 0.001 || Math.abs(spring.velScaleX) > 0.01 ||
+            Math.abs(spring.x - spring.targetX) > 0.01 || Math.abs(spring.velX) > 0.01) {
+          needsUpdate = true;
+        }
+
+        const el = charRefs.current.get(idx);
+        if (el) {
+          el.style.transform = `scaleX(${spring.scaleX}) translateX(${spring.x}px)`;
+        }
+      });
+
+      if (needsUpdate) {
+        rafRef.current = requestAnimationFrame(step);
+      } else {
+        rafRef.current = requestAnimationFrame(step); // keep running for responsiveness
+      }
+    };
+
+    rafRef.current = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, []);
+
+  // Update spring targets when hover changes
+  useEffect(() => {
+    // Ensure springs exist for all characters
+    for (let i = 0; i < text.length; i++) {
+      if (!springsRef.current.has(i)) {
+        springsRef.current.set(i, { scaleX: 1, x: 0, targetScaleX: 1, targetX: 0, velScaleX: 0, velX: 0 });
+      }
+    }
+    // Clean up extras
+    springsRef.current.forEach((_, key) => {
+      if (key >= text.length) springsRef.current.delete(key);
+    });
+
+    // Set targets
+    for (let i = 0; i < text.length; i++) {
+      const spring = springsRef.current.get(i)!;
+      if (hoveredChar === null) {
+        spring.targetScaleX = 1;
+        spring.targetX = 0;
+      } else {
+        const distance = Math.abs(i - hoveredChar);
+        if (i === hoveredChar) {
+          spring.targetScaleX = MAX_SCALE;
+          spring.targetX = 0;
+        } else if (distance <= PUSH_RANGE) {
+          const direction = Math.sign(i - hoveredChar);
+          const falloff = 1 - distance / (PUSH_RANGE + 1);
+          const pushPx = FONT_SIZE * 0.4 * falloff * direction;
+          spring.targetScaleX = 1 - 0.15 * falloff;
+          spring.targetX = pushPx;
+        } else {
+          spring.targetScaleX = 1;
+          spring.targetX = 0;
+        }
+      }
+    }
+  }, [hoveredChar, text.length, text]);
+
   const handleInput = () => {
     const el = hiddenRef.current;
     if (!el) return;
@@ -121,7 +110,7 @@ export function FisheyeText() {
     setCursorPos(el.selectionStart ?? el.value.length);
   };
 
-  const handleKeyUp = () => {
+  const syncCursor = () => {
     const el = hiddenRef.current;
     if (!el) return;
     setCursorPos(el.selectionStart ?? el.value.length);
@@ -136,22 +125,7 @@ export function FisheyeText() {
     }
   };
 
-  // Build words with their global character offsets
-  const segments: { type: "word" | "space"; text: string; offset: number }[] =
-    [];
-  let offset = 0;
-  const parts = text.split(/( +)/);
-  for (const part of parts) {
-    if (part.length === 0) continue;
-    segments.push({
-      type: part.trim() === "" ? "space" : "word",
-      text: part,
-      offset,
-    });
-    offset += part.length;
-  }
-
-  const isEmpty = text.length === 0;
+  const chars = text.split("");
 
   return (
     <div
@@ -159,89 +133,111 @@ export function FisheyeText() {
       style={{ background: BG, cursor: "text" }}
       onClick={focusInput}
     >
-      {/* Hidden textarea captures all keyboard input */}
+      <style>{`
+        @keyframes caret-blink {
+          0%, 50% { opacity: 1; }
+          51%, 100% { opacity: 0; }
+        }
+      `}</style>
+
       <textarea
         ref={hiddenRef}
         value={text}
         onChange={handleInput}
-        onKeyUp={handleKeyUp}
-        onSelect={handleKeyUp}
+        onKeyUp={syncCursor}
+        onMouseUp={syncCursor}
+        onSelect={syncCursor}
         autoFocus
         style={{
-          position: "absolute",
+          position: "fixed",
+          top: -9999,
+          left: -9999,
           opacity: 0,
-          width: 0,
-          height: 0,
-          pointerEvents: "none",
+          width: 1,
+          height: 1,
         }}
       />
 
       <div
-        ref={containerRef}
         style={{
           display: "flex",
           flexWrap: "wrap",
-          justifyContent: "flex-start",
           alignItems: "baseline",
           fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', monospace",
           fontSize: FONT_SIZE,
           fontWeight: 400,
           color: "#fff",
           lineHeight: 1.5,
-          overflow: "visible",
           maxWidth: 800,
           minHeight: "1.5em",
           position: "relative",
         }}
       >
-        {isEmpty && (
-          <span style={{ color: "rgba(255,255,255,0.15)", position: "relative" }}>
-            <Cursor />
+        {text.length === 0 && (
+          <span style={{ color: "rgba(255,255,255,0.15)", position: "relative", display: "inline-flex" }}>
+            <Caret />
             {PLACEHOLDER}
           </span>
         )}
 
-        <AnimatePresence mode="popLayout">
-          {segments.map((seg, si) => {
-            if (seg.type === "space") {
-              return (
-                <span key={`s-${si}`} style={{ position: "relative", display: "inline-flex" }}>
-                  {/* Show cursor at each space position */}
-                  {Array.from({ length: seg.text.length }).map((_, i) => {
-                    const gi = seg.offset + i;
-                    return gi === cursorPos ? (
-                      <span key={i} style={{ position: "relative", width: "0.6ch" }}>
-                        <Cursor />
-                        <span style={{ visibility: "hidden" }}>{" "}</span>
-                      </span>
-                    ) : (
-                      <span key={i} style={{ width: "0.6ch", display: "inline-block" }}>
-                        {" "}
-                      </span>
-                    );
-                  })}
-                </span>
-              );
-            }
-            return (
-              <FisheyeWord
-                key={`w-${si}`}
-                word={seg.text}
-                globalOffset={seg.offset}
-                cursorPos={cursorPos}
-                onCharClick={handleCharClick}
-              />
-            );
-          })}
-        </AnimatePresence>
+        {chars.map((char, i) => {
+          const isSpace = char === " ";
+          return (
+            <span
+              key={i}
+              style={{ position: "relative", display: "inline-block" }}
+            >
+              {cursorPos === i && <Caret />}
+              <span
+                ref={(el) => {
+                  if (el) charRefs.current.set(i, el);
+                  else charRefs.current.delete(i);
+                }}
+                onMouseEnter={() => setHoveredChar(i)}
+                onMouseLeave={() => setHoveredChar(null)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCharClick(i);
+                }}
+                style={{
+                  display: "inline-block",
+                  transformOrigin: "center",
+                  cursor: "text",
+                  width: isSpace ? "0.6ch" : undefined,
+                  willChange: "transform",
+                }}
+              >
+                {isSpace ? "\u00A0" : char}
+              </span>
+            </span>
+          );
+        })}
 
-        {/* Cursor at end of text */}
-        {!isEmpty && cursorPos === text.length && (
-          <span style={{ position: "relative", display: "inline-flex" }}>
-            <Cursor />
+        {text.length > 0 && cursorPos === text.length && (
+          <span style={{ position: "relative", display: "inline-block", width: 2 }}>
+            <Caret />
           </span>
         )}
       </div>
     </div>
+  );
+}
+
+function Caret() {
+  return (
+    <span
+      style={{
+        position: "absolute",
+        left: -1,
+        top: "0.15em",
+        width: 2,
+        height: "0.75em",
+        background: "#fff",
+        borderRadius: 1,
+        zIndex: 10,
+        pointerEvents: "none",
+        animation: "caret-blink 1s steps(1) infinite",
+      }}
+    />
   );
 }
