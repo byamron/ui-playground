@@ -15,23 +15,26 @@
  *   pizza:    15  (warm coral)
  */
 
-// --- Core palette hues (portfolio originals + extended family) ---
+// --- Core palette hues ---
+// Tightened to 6 well-spaced hues across 3 families:
+//   Warm (25, 42) · Cool (215, 270) · Accent (155, 350)
 
 export const HUES = {
-  // Portfolio originals
-  table: 34,
-  portrait: 47,
-  sky: 204,
-  pizza: 15,
-  // Extended family (same DNA — either warm analogues or cool complements)
-  slate: 220,
-  violet: 260,
-  sage: 150,
-  rose: 350,
-  ember: 25,
-  midnight: 235,
-  forest: 165,
-  dusk: 280,
+  ember: 25,      // warm coral/orange
+  gold: 42,       // warm amber (merged table + portrait)
+  sage: 155,      // muted green (merged sage + forest)
+  sky: 215,       // cool blue (merged sky + slate + midnight)
+  violet: 270,    // purple (merged violet + dusk)
+  rose: 350,      // red-pink
+
+  // Legacy aliases — map old names to nearest consolidated hue
+  table: 42,
+  portrait: 42,
+  pizza: 25,
+  slate: 215,
+  midnight: 215,
+  forest: 155,
+  dusk: 270,
 } as const;
 
 export type HueName = keyof typeof HUES;
@@ -120,5 +123,6 @@ export const demoPalettes = {
   "cursor-morph": { hue: HUES.forest, mode: "dark" as const, intensity: 1 as const },
   "theme-sidebar": { hue: HUES.table, mode: "dark" as const, intensity: 1 as const },
   "task-ranking": { hue: HUES.rose, mode: "dark" as const, intensity: 1 as const },
-  "dvd-bounce": { hue: HUES.pizza, mode: "dark" as const, intensity: 0 as const },
+  "dvd-bounce": { hue: HUES.ember, mode: "dark" as const, intensity: 1 as const },
+  "slide-unlock": { hue: HUES.sky, mode: "dark" as const, intensity: 1 as const },
 } as const;

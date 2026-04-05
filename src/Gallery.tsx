@@ -68,6 +68,12 @@ const demos = [
     description: "Classic bouncing logo with squash physics, corner celebrations, and mouse influence",
     bg: bg(demoPalettes["dvd-bounce"]),
   },
+  {
+    path: "/slide-unlock",
+    title: "Slide to Unlock",
+    description: "Drag with fluid WebGL shader trail, spring snap-back, and switchable patterns",
+    bg: bg(demoPalettes["slide-unlock"]),
+  },
 ];
 
 const galleryBg = bg({ hue: 220, mode: "dark", intensity: 0 });
@@ -92,7 +98,7 @@ export function Gallery() {
           marginBottom: 48,
         }}
       >
-        UI Craft Demos
+        Playground
       </h1>
       <div
         style={{
