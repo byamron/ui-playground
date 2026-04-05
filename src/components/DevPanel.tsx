@@ -570,7 +570,7 @@ export function DevButton({
       whileTap={{ scale: 0.97 }}
       style={{
         width: "100%",
-        padding: "7px 0",
+        padding: "8px 12px",
         borderRadius: 6,
         border: `1px solid ${isPrimary ? "rgba(255,255,255,0.20)" : PANEL.border}`,
         background: isPrimary
@@ -583,9 +583,8 @@ export function DevButton({
         fontSize: PANEL.font.label,
         fontFamily: PANEL.font.family,
         fontWeight: isPrimary ? 500 : 400,
+        lineHeight: 1.4,
         transition: "border-color 0.12s, background 0.12s",
-        overflow: "hidden",
-        position: "relative",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.borderColor = isPrimary

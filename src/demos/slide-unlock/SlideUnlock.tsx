@@ -32,6 +32,15 @@ const THRESHOLD = 0.85;
 const SPRING_STIFFNESS = 322;
 const SPRING_DAMPING = 25.1;
 
+// --- Completion timeline (RAF-driven, replaces setTimeout cascade) ---
+
+const COMPLETION_TIMELINE = [
+  { at: 100, action: "flash" },
+  { at: 450, action: "gone" },
+  { at: 1000, action: "reset" },
+  { at: 1500, action: "idle" },
+] as const;
+
 // --- GLSL noise library (shared across all patterns) ---
 
 const NOISE_GLSL = `
@@ -331,10 +340,19 @@ export function SlideUnlock() {
   const springRef = useRef({ position: 0, velocity: 0, target: 0, active: false });
 
   // Drag state
-  const dragStateRef = useRef({ dragging: false, startX: 0, startOffset: 0 });
+  const dragStateRef = useRef({
+    dragging: false,
+    startX: 0,
+    startOffset: 0,
+    samples: [] as Array<{ x: number; t: number }>,
+  });
 
-  // Completion timers (clear on new completion to prevent overlap)
-  const completionTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Completion timeline state (RAF-driven)
+  const completionRef = useRef<{ startTime: number; actionIndex: number } | null>(null);
+
+  // Threshold-crossing detent
+  const prevAtThresholdRef = useRef(false);
+  const [handlePulse, setHandlePulse] = useState(false);
 
   // Proportional scale so the element fills more of the page
   const [viewScale, setViewScale] = useState(1);
@@ -493,6 +511,42 @@ export function SlideUnlock() {
         setDragOffset(Math.max(0, s.position));
       }
 
+      // Process completion timeline
+      const comp = completionRef.current;
+      if (comp !== null) {
+        const elapsed = now - comp.startTime;
+        while (
+          comp.actionIndex < COMPLETION_TIMELINE.length &&
+          elapsed >= COMPLETION_TIMELINE[comp.actionIndex].at
+        ) {
+          const action = COMPLETION_TIMELINE[comp.actionIndex].action;
+          comp.actionIndex++;
+
+          switch (action) {
+            case "flash":
+              setPhase("flash");
+              break;
+            case "gone":
+              setPhase("gone");
+              break;
+            case "reset":
+              setIsComplete(false);
+              setDragOffset(0);
+              springRef.current = { position: 0, velocity: 0, target: 0, active: false };
+              prevAtThresholdRef.current = false;
+              setCycleKey((k) => k + 1);
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => setPhase("entering"));
+              });
+              break;
+            case "idle":
+              setPhase("idle");
+              completionRef.current = null;
+              break;
+          }
+        }
+      }
+
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
@@ -505,7 +559,12 @@ export function SlideUnlock() {
     (e: React.PointerEvent) => {
       if (isComplete) return;
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
-      dragStateRef.current = { dragging: true, startX: e.clientX, startOffset: dragOffset };
+      dragStateRef.current = {
+        dragging: true,
+        startX: e.clientX,
+        startOffset: dragOffset,
+        samples: [{ x: e.clientX, t: performance.now() }],
+      };
       springRef.current.active = false;
     },
     [isComplete, dragOffset]
@@ -517,6 +576,10 @@ export function SlideUnlock() {
     const newOffset = Math.min(Math.max(dragStateRef.current.startOffset + dx, 0), MAX_OFFSET);
     setDragOffset(newOffset);
     springRef.current.position = newOffset;
+
+    const samples = dragStateRef.current.samples;
+    samples.push({ x: e.clientX, t: performance.now() });
+    if (samples.length > 4) samples.shift();
   }, []);
 
   const onPointerUp = useCallback(() => {
@@ -525,41 +588,43 @@ export function SlideUnlock() {
 
     const progress = dragOffset / MAX_OFFSET;
     if (progress >= THRESHOLD) {
-      // Clear any in-flight completion from a previous cycle
-      completionTimers.current.forEach(clearTimeout);
-      completionTimers.current = [];
-
-      // 1. Snap handle to end
+      // Start completion timeline (cancels any in-flight one)
       setIsComplete(true);
       springRef.current = { position: dragOffset, velocity: 0, target: MAX_OFFSET, active: true };
       if (navigator.vibrate) navigator.vibrate(10);
-
-      const t1 = setTimeout(() => setPhase("flash"), 100);
-      const t2 = setTimeout(() => setPhase("gone"), 450);
-      const t3 = setTimeout(() => {
-        // Reset state while invisible
-        setIsComplete(false);
-        setDragOffset(0);
-        springRef.current = { position: 0, velocity: 0, target: 0, active: false };
-        setCycleKey((k) => k + 1);
-        // Two frames: first to lay out at reset position, second to start the enter transition
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => setPhase("entering"));
-        });
-      }, 1000);
-      const t4 = setTimeout(() => setPhase("idle"), 1500);
-
-      completionTimers.current = [t1, t2, t3, t4];
-
-
+      completionRef.current = { startTime: performance.now(), actionIndex: 0 };
     } else {
-      // Snap back
-      springRef.current = { position: dragOffset, velocity: 0, target: 0, active: true };
+      // Compute gesture velocity from recent samples
+      let gestureVelocity = 0;
+      const samples = dragStateRef.current.samples;
+      if (samples.length >= 2) {
+        const newest = samples[samples.length - 1];
+        const oldest = samples[Math.max(0, samples.length - 3)];
+        const dtMs = newest.t - oldest.t;
+        if (dtMs > 0 && dtMs < 200) {
+          gestureVelocity = ((newest.x - oldest.x) / dtMs) * 1000 / viewScaleRef.current;
+        }
+      }
+      gestureVelocity = Math.max(-3000, Math.min(3000, gestureVelocity));
+
+      // Snap back with gesture momentum
+      springRef.current = { position: dragOffset, velocity: gestureVelocity, target: 0, active: true };
     }
   }, [dragOffset]);
 
   const progress = dragOffset / MAX_OFFSET;
   const isAtThreshold = progress >= THRESHOLD;
+
+  // Detect threshold crossing during active drag
+  if (isAtThreshold !== prevAtThresholdRef.current) {
+    prevAtThresholdRef.current = isAtThreshold;
+    if (isAtThreshold && dragStateRef.current.dragging) {
+      navigator.vibrate?.(5);
+      setHandlePulse(true);
+      setTimeout(() => setHandlePulse(false), 120);
+    }
+  }
+
   const trailWidth =
     phase === "flash" ? TRACK_WIDTH : Math.max(0, dragOffset + HANDLE_SIZE + TRACK_PADDING);
   const trailOpacity =
@@ -724,8 +789,8 @@ export function SlideUnlock() {
             width: TRACK_WIDTH,
             height: TRACK_HEIGHT,
             borderRadius: TRACK_HEIGHT / 2,
-            background: "rgba(255,255,255,0.03)",
-            outline: "1px solid rgba(255,255,255,0.10)",
+            background: "rgba(255,255,255,0.06)",
+            outline: "1px solid rgba(255,255,255,0.15)",
             outlineOffset: -1,
             overflow: "hidden",
             userSelect: "none",
@@ -832,8 +897,10 @@ export function SlideUnlock() {
               alignItems: "center",
               justifyContent: "center",
               cursor: isComplete ? "default" : "grab",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px rgba(255,255,255,0.06)",
               zIndex: 2,
+              transform: handlePulse ? "scale(1.04)" : "scale(1)",
+              transition: "transform 120ms ease-out",
             }}
             animate={{
               backgroundColor: isAtThreshold
