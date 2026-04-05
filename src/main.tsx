@@ -14,6 +14,7 @@ import { CursorMorph } from "./demos/cursor-morph/CursorMorph";
 import { ThemeSidebar } from "./demos/theme-sidebar/ThemeSidebar";
 import { TaskRanking } from "./demos/task-ranking/TaskRanking";
 import { DvdBounce } from "./demos/dvd-bounce/DvdBounce";
+import { SlideUnlock } from "./demos/slide-unlock/SlideUnlock";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -31,6 +32,7 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/theme-sidebar" element={<ThemeSidebar />} />
         <Route path="/task-ranking" element={<TaskRanking />} />
         <Route path="/dvd-bounce" element={<DvdBounce />} />
+        <Route path="/slide-unlock" element={<SlideUnlock />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>

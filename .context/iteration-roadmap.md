@@ -63,7 +63,7 @@ Balanced for **impact** (Twitter/portfolio presence — how cool or thoughtful i
 
 ---
 
-### #3. Slide to Unlock + WebGL Infra (Craft/Shader) — UNBLOCKS SHADERS
+### #3. Slide to Unlock + WebGL Infra (Craft/Shader) — DONE
 **Source files:**
 - `SlideToCallControl.swift` — SwiftUI component with drag gesture, threshold detection, spring reset
 - `FluidMotion.metal` — Metal shader: 3D simplex noise + FBM for flowing green fluid trail
@@ -72,7 +72,7 @@ Balanced for **impact** (Twitter/portfolio presence — how cool or thoughtful i
 **File:** New — `src/demos/slide-unlock/SlideUnlock.tsx`
 **Why third:** Creates shared WebGL infrastructure (`src/utils/webgl.ts`) that Theme Sidebar (#12) and Cursor Morph (#11) need. The demo itself is also impressive and postable.
 
-**Current state:** Native iOS implementation. Needs full web port. No web version exists yet.
+**Current state:** SHIPPED. Full web port complete with extended shader system.
 
 **Designer take:** High craft with product meaning. The fluid trail building behind the handle as you drag, the threshold color change, the spring reset — it has intention. The shader gives it a quality that's immediately distinctive.
 
