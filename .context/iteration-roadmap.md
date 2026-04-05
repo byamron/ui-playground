@@ -47,6 +47,8 @@ Balanced for **impact** (Twitter/portfolio presence — how cool or thoughtful i
 
 **Portfolio backport:** N/A — standalone demo.
 
+**Future: Mobile support.** The sidebar DevPanel doesn't work on mobile. Add a floating "Tune" button (top-right) that opens the controls as a modal/overlay, so the logo keeps the full screen to bounce behind it. The canvas already uses container-based sizing, so the bounce area wouldn't need changes — just the panel presentation layer.
+
 ---
 
 ### #2. Figma High-Five Permissions (Unhinged) — QUICK WIN

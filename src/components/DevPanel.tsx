@@ -25,6 +25,9 @@ const PANEL = {
   },
 } as const;
 
+/** Spacing token for controls inside the sidebar — use as `gap` on custom wrappers. */
+export const DEV_PANEL_GAP = PANEL.gap;
+
 const COLOR = {
   label: text.dark.tertiary,
   value: text.dark.secondary,
@@ -32,7 +35,7 @@ const COLOR = {
   primary: text.dark.primary,
   active: "rgba(255,255,255,0.10)",
   activeBorder: "rgba(255,255,255,0.22)",
-  track: "rgba(255,255,255,0.06)",
+  track: "rgba(255,255,255,0.10)",
   fill: "rgba(255,255,255,0.22)",
   thumb: "rgba(255,255,255,0.85)",
 } as const;
@@ -523,7 +526,7 @@ export function DevToggle({
           height: 16,
           borderRadius: 8,
           border: "none",
-          background: checked ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.06)",
+          background: checked ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.10)",
           cursor: "pointer",
           padding: 0,
           transition: "background 0.15s",
@@ -558,10 +561,23 @@ export function DevButton({
 }: {
   label: string;
   onClick: () => void;
-  variant?: "default" | "muted" | "primary";
+  variant?: "default" | "secondary" | "muted" | "primary";
 }) {
   const isPrimary = variant === "primary";
+  const isSecondary = variant === "secondary";
   const isMuted = variant === "muted";
+
+  const bg = isPrimary
+    ? "rgba(255,255,255,0.10)"
+    : isSecondary
+      ? "rgba(255,255,255,0.04)"
+      : isMuted
+        ? "transparent"
+        : "rgba(255,255,255,0.03)";
+
+  const fg = isPrimary || isSecondary ? COLOR.primary : isMuted ? COLOR.muted : COLOR.label;
+  const borderColor = isPrimary ? "rgba(255,255,255,0.20)" : PANEL.border;
+  const borderHover = isPrimary ? "rgba(255,255,255,0.30)" : PANEL.borderHover;
 
   return (
     <motion.button
@@ -572,13 +588,9 @@ export function DevButton({
         width: "100%",
         padding: "7px 0",
         borderRadius: 6,
-        border: `1px solid ${isPrimary ? "rgba(255,255,255,0.20)" : PANEL.border}`,
-        background: isPrimary
-          ? "rgba(255,255,255,0.10)"
-          : isMuted
-            ? "transparent"
-            : "rgba(255,255,255,0.03)",
-        color: isPrimary ? COLOR.primary : isMuted ? COLOR.muted : COLOR.label,
+        border: `1px solid ${borderColor}`,
+        background: bg,
+        color: fg,
         cursor: "pointer",
         fontSize: PANEL.font.label,
         fontFamily: PANEL.font.family,
@@ -588,14 +600,10 @@ export function DevButton({
         position: "relative",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = isPrimary
-          ? "rgba(255,255,255,0.30)"
-          : PANEL.borderHover;
+        e.currentTarget.style.borderColor = borderHover;
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = isPrimary
-          ? "rgba(255,255,255,0.20)"
-          : PANEL.border;
+        e.currentTarget.style.borderColor = borderColor;
       }}
     >
       <AnimatePresence mode="wait" initial={false}>
