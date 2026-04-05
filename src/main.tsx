@@ -15,6 +15,7 @@ import { ThemeSidebar } from "./demos/theme-sidebar/ThemeSidebar";
 import { TaskRanking } from "./demos/task-ranking/TaskRanking";
 import { DvdBounce } from "./demos/dvd-bounce/DvdBounce";
 import { SlideUnlock } from "./demos/slide-unlock/SlideUnlock";
+import { FigmaHighfive } from "./demos/figma-highfive/FigmaHighfive";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -33,6 +34,7 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/task-ranking" element={<TaskRanking />} />
         <Route path="/dvd-bounce" element={<DvdBounce />} />
         <Route path="/slide-unlock" element={<SlideUnlock />} />
+        <Route path="/figma-highfive" element={<FigmaHighfive />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>

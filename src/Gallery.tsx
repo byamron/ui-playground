@@ -74,6 +74,12 @@ const demos = [
     description: "Drag with fluid WebGL shader trail, spring snap-back, and switchable patterns",
     bg: bg(demoPalettes["slide-unlock"]),
   },
+  {
+    path: "/figma-highfive",
+    title: "Figma High-Five",
+    description: "FigJam share modal with a very useful permission level",
+    bg: bg(demoPalettes["figma-highfive"]),
+  },
 ];
 
 const galleryBg = bg({ hue: 220, mode: "dark", intensity: 0 });

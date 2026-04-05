@@ -125,4 +125,5 @@ export const demoPalettes = {
   "task-ranking": { hue: HUES.rose, mode: "dark" as const, intensity: 1 as const },
   "dvd-bounce": { hue: HUES.ember, mode: "dark" as const, intensity: 1 as const },
   "slide-unlock": { hue: HUES.sky, mode: "dark" as const, intensity: 1 as const },
+  "figma-highfive": { hue: HUES.violet, mode: "light" as const, intensity: 0 as const },
 } as const;
