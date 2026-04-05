@@ -1,7 +1,15 @@
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { bg, demoPalettes } from "../../palette";
 import { generateExportHtml } from "./export-template";
+import {
+  DevPanel,
+  DevSlider,
+  DevToggle,
+  DevButton,
+  DevDivider,
+  DEV_PANEL_GAP,
+} from "../../components/DevPanel";
 
 const BG = bg(demoPalettes["dvd-bounce"]);
 
@@ -12,8 +20,8 @@ const DVD_COLORS = [
 
 const BASE_LOGO_W = 180;
 const BASE_LOGO_H = 80; // matches the real DVD logo's ~2.27:1 aspect ratio
-const GROWTH_PER_CORNER = 0.08; // 8% bigger each corner hit
-const MAX_GROWTH = 1.8; // cap at 1.8x to prevent filling screen
+const GROWTH_FACTOR = 1.2; // 20% bigger from current size each corner hit
+const MAX_GROWTH_HITS = 6; // reset to base size after this many growth steps
 
 interface Particle {
   x: number; y: number; vx: number; vy: number;
@@ -30,20 +38,18 @@ interface Config {
   shake: number;
   trail: number;
   cornerSeek: number;
-  mouseForce: number;
-  mouseRadius: number;
+  mouseGravity: number;
 }
 
 const DEFAULT_CONFIG: Config = {
-  speed: 2.2,
+  speed: 2,
   size: 1,
-  elasticity: 0.6,
-  deform: 0.5,
+  elasticity: 0,
+  deform: 0,
   shake: 0,
   trail: 0,
   cornerSeek: 0,
-  mouseForce: 0.15,
-  mouseRadius: 200,
+  mouseGravity: 0,
 };
 
 const SLIDER_DEFS: {
@@ -57,9 +63,18 @@ const SLIDER_DEFS: {
   { key: "shake", label: "Shake", min: 0, max: 1, step: 0.01 },
   { key: "trail", label: "Trail", min: 0, max: 1, step: 0.01 },
   { key: "cornerSeek", label: "Corner seek", min: 0, max: 1, step: 0.01, display: (v) => `${Math.round(v * 100)}%` },
-  { key: "mouseForce", label: "Attraction", min: 0, max: 0.5, step: 0.01 },
-  { key: "mouseRadius", label: "Reach", min: 50, max: 500, step: 10, display: (v) => `${v}px` },
+  { key: "mouseGravity", label: "Mouse gravity", min: 0, max: 1, step: 0.01 },
 ];
+
+function relativeLuminance(hex: string): number {
+  const m = hex.match(/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (!m) return 0;
+  const [r, g, b] = [m[1], m[2], m[3]].map((c) => {
+    const v = parseInt(c, 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
 
 interface DeformSpring {
   value: number;
@@ -73,27 +88,137 @@ function stepSpring(s: DeformSpring, target: number, stiffness: number, damping:
   s.value += s.velocity / 60;
 }
 
+// ---------------------------------------------------------------------------
+// CornerFlyText — "CORNER!" thrown from hit location into the counter
+// Uses real projectile physics: parabolic arc, spin, shrink on arrival.
+// ---------------------------------------------------------------------------
+
+function CornerFlyText({
+  startX,
+  startY,
+  targetX,
+  targetY,
+  color,
+  onComplete,
+}: {
+  startX: number;
+  startY: number;
+  targetX: number;
+  targetY: number;
+  color: string;
+  onComplete: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) { onCompleteRef.current(); return; }
+
+    const HOLD = 0.5; // seconds to display before throwing
+    const THROW = 0.6; // seconds for the throw arc
+    const G = 1800; // gravity px/s²
+
+    const dx = targetX - startX;
+    const dy = targetY - startY;
+    const vx = dx / THROW;
+    // Solve for initial vy so projectile lands at target: y = vy*t + ½g*t²
+    const vy = (dy - 0.5 * G * THROW * THROW) / THROW;
+    const spinDir = dx < 0 ? -1 : 1;
+    const spinSpeed = spinDir * 720; // 2 full rotations
+
+    const END_SCALE = 0.35; // ≈ 11px/32px — matches counter digit size
+    let t0: number | null = null;
+    let raf: number;
+
+    const tick = (ts: number) => {
+      if (!t0) t0 = ts;
+      const elapsed = (ts - t0) / 1000;
+
+      if (elapsed < HOLD) {
+        // Hold phase — pop in and sit still
+        const fadeIn = Math.min(1, elapsed / 0.08);
+        el.style.transform = `translate(${startX}px, ${startY}px) translate(-50%, -50%) scale(1)`;
+        el.style.opacity = String(fadeIn);
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+
+      // Throw phase
+      const throwElapsed = elapsed - HOLD;
+      const t = Math.min(throwElapsed / THROW, 1);
+
+      const x = startX + vx * throwElapsed;
+      const y = startY + vy * throwElapsed + 0.5 * G * throwElapsed * throwElapsed;
+      const scale = 1 - (1 - END_SCALE) * t * t; // holds big, shrinks late
+      const rotation = spinSpeed * throwElapsed;
+      const opacity = t > 0.78 ? 1 - (t - 0.78) / 0.22 : 1;
+
+      el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${scale}) rotate(${rotation}deg)`;
+      el.style.opacity = String(Math.max(0, opacity));
+
+      if (t < 1) {
+        raf = requestAnimationFrame(tick);
+      } else {
+        onCompleteRef.current();
+      }
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [startX, startY, targetX, targetY]);
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        pointerEvents: "none",
+        color,
+        font: 'bold 32px "SF Mono", "Fira Code", monospace',
+        whiteSpace: "nowrap",
+        zIndex: 10,
+        textShadow: `0 0 20px ${color}66`,
+        opacity: 0,
+      }}
+    >
+      CORNER!
+    </div>
+  );
+}
+
 export function DvdBounce() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const logoImgRef = useRef<HTMLImageElement | null>(null);
   const tintCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [panelOpen, setPanelOpen] = useState(true);
   const [config, setConfig] = useState<Config>(DEFAULT_CONFIG);
   const [liveColor, setLiveColor] = useState(DVD_COLORS[0]);
-  const [liveCorners, setLiveCorners] = useState(0);
   const [liveBounces, setLiveBounces] = useState(0);
   const [cornerKey, setCornerKey] = useState(0);
+  const [displayedCorners, setDisplayedCorners] = useState(0);
+  const [cornerFlies, setCornerFlies] = useState<
+    Array<{ key: number; color: string; startX: number; startY: number; targetX: number; targetY: number }>
+  >([]);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const cornerCounterRef = useRef<HTMLSpanElement>(null);
   const [svgDataUrl, setSvgDataUrl] = useState<string | null>(null);
   const [logoAspect, setLogoAspect] = useState(BASE_LOGO_W / BASE_LOGO_H);
-  const [showCornerText, setShowCornerText] = useState(true);
+  const [showCornerText, setShowCornerText] = useState(false);
   const [showCounter, setShowCounter] = useState(true);
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
   pausedRef.current = paused;
-  const [growOnCorner, setGrowOnCorner] = useState(true);
+  const [growOnCorner, setGrowOnCorner] = useState(false);
   const growOnCornerRef = useRef(true);
   growOnCornerRef.current = growOnCorner;
   const [bgColor, setBgColor] = useState("#111111");
+  const bgIsLight = useMemo(() => relativeLuminance(bgColor) > 0.18, [bgColor]);
+  const overlayColor = bgIsLight ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.45)";
+  const overlayMuted = bgIsLight ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.2)";
+  const overlayDivider = bgIsLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.1)";
   const [dragState, setDragState] = useState<"idle" | "accepting" | "error">("idle");
   const dragCounterRef = useRef(0);
   const [logoHasAlpha, setLogoHasAlpha] = useState(true);
@@ -121,6 +246,7 @@ export function DvdBounce() {
     bounceSinceNudge: 0,
     cornerQueued: false,
     growthScale: 1,
+    growthHits: 0,
     shakeX: { value: 0, velocity: 0 } as DeformSpring,
     shakeY: { value: 0, velocity: 0 } as DeformSpring,
     trailPositions: [] as { x: number; y: number }[],
@@ -142,7 +268,7 @@ export function DvdBounce() {
 
   const handleSetGrowOnCorner = useCallback((v: boolean) => {
     setGrowOnCorner(v);
-    if (!v) stateRef.current.growthScale = 1;
+    if (!v) { stateRef.current.growthScale = 1; stateRef.current.growthHits = 0; }
   }, []);
 
   const isSupportedFile = useCallback((file: File) => {
@@ -192,7 +318,7 @@ export function DvdBounce() {
           }
         }
         setLogoAspect(Math.max(0.5, Math.min(10, aspect || BASE_LOGO_W / BASE_LOGO_H)));
-        stateRef.current.growthScale = 1;
+        stateRef.current.growthScale = 1; stateRef.current.growthHits = 0;
       };
       img.src = dataUrl;
     };
@@ -248,7 +374,7 @@ export function DvdBounce() {
     const img = new Image();
     img.src = "/dvd-logo.svg";
     img.onload = () => { logoImgRef.current = img; };
-    stateRef.current.growthScale = 1;
+    stateRef.current.growthScale = 1; stateRef.current.growthHits = 0;
   }, []);
 
   const handleExport = useCallback(() => {
@@ -329,16 +455,26 @@ export function DvdBounce() {
     let raf: number;
     let frameCount = 0;
 
-    const resize = () => {
+    const container = canvas.parentElement!;
+    let containerW = 0;
+    let containerH = 0;
+
+    // Check container size at the start of each frame so resize + redraw
+    // are atomic — avoids flash when the sidebar animates open/closed.
+    const syncSize = () => {
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      if (w === containerW && h === containerH) return;
+      containerW = w;
+      containerH = h;
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = window.innerWidth * dpr;
-      canvas.height = window.innerHeight * dpr;
-      canvas.style.width = `${window.innerWidth}px`;
-      canvas.style.height = `${window.innerHeight}px`;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
-    resize();
-    window.addEventListener("resize", resize);
+    syncSize();
 
     const onMouseMove = (e: MouseEvent) => {
       stateRef.current.mouseX = e.clientX;
@@ -390,10 +526,11 @@ export function DvdBounce() {
     };
 
     const frame = () => {
+      syncSize();
       const s = stateRef.current;
       const c = configRef.current;
-      const W = window.innerWidth;
-      const H = window.innerHeight;
+      const W = containerW;
+      const H = containerH;
       frameCount++;
 
       const logoW = logoDimsRef.current.w * c.size * s.growthScale;
@@ -405,18 +542,19 @@ export function DvdBounce() {
       if (frameCount % 10 === 0) {
         setLiveColor(DVD_COLORS[s.colorIndex]);
         setLiveBounces(s.bounceCount);
-        setLiveCorners(s.cornerCount);
       }
 
-      // Mouse influence
-      if (s.mouseActive) {
+      // Mouse influence — derive force & radius from single gravity knob
+      if (s.mouseActive && c.mouseGravity > 0) {
+        const mouseForce = c.mouseGravity * 0.5;
+        const mouseRadius = 100 + c.mouseGravity * 400;
         const logoCX = s.x + logoW / 2;
         const logoCY = s.y + logoH / 2;
         const dx = s.mouseX - logoCX;
         const dy = s.mouseY - logoCY;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < c.mouseRadius && dist > 1) {
-          const force = (1 - dist / c.mouseRadius) * c.mouseForce;
+        if (dist < mouseRadius && dist > 1) {
+          const force = (1 - dist / mouseRadius) * mouseForce;
           s.vx += (dx / dist) * force;
           s.vy += (dy / dist) * force;
           const speed = Math.sqrt(s.vx * s.vx + s.vy * s.vy);
@@ -493,13 +631,19 @@ export function DvdBounce() {
           s.cornerQueued = false;
           s.bounceSinceNudge = 0;
 
-          // Grow on corner hit (if enabled)
+          // Grow on corner hit (if enabled) — reset after MAX_GROWTH_HITS
           if (growOnCornerRef.current) {
-            s.growthScale = Math.min(MAX_GROWTH, s.growthScale + GROWTH_PER_CORNER);
+            s.growthHits = (s.growthHits || 0) + 1;
+            if (s.growthHits > MAX_GROWTH_HITS) {
+              s.growthScale = 1;
+              s.growthHits = 0;
+            } else {
+              s.growthScale *= GROWTH_FACTOR;
+            }
           }
 
           // Confetti from logo center (cap particles to prevent overload)
-          if (s.particles.length < 300) {
+          if (showCornerTextRef.current && s.particles.length < 300) {
             spawnConfetti(s.x + logoW / 2, s.y + logoH / 2);
           }
 
@@ -510,10 +654,34 @@ export function DvdBounce() {
             s.shakeY.velocity += (Math.random() * 2 - 1) * shakeStr;
           }
 
-          // Sync React state immediately for the counter animation
-          setLiveCorners(s.cornerCount);
+          // Queue fly animation or increment counter immediately
           setLiveBounces(s.bounceCount);
-          setCornerKey((k) => k + 1);
+          if (showCornerTextRef.current) {
+            const contentEl = contentRef.current;
+            const counterEl = cornerCounterRef.current;
+            let targetX = 100;
+            let targetY = H - 28;
+            if (contentEl && counterEl) {
+              const cRect = contentEl.getBoundingClientRect();
+              const tRect = counterEl.getBoundingClientRect();
+              targetX = tRect.left - cRect.left + tRect.width / 2;
+              targetY = tRect.top - cRect.top + tRect.height / 2;
+            }
+            setCornerFlies((prev) => [
+              ...prev,
+              {
+                key: Date.now(),
+                color: DVD_COLORS[s.colorIndex],
+                startX: s.x + logoW / 2,
+                startY: s.y + logoH / 2,
+                targetX,
+                targetY,
+              },
+            ]);
+          } else {
+            setDisplayedCorners(s.cornerCount);
+            setCornerKey((k) => k + 1);
+          }
         } else {
           if (hitX) {
             s.deformX.velocity = -squashAmount * 60 * deformScale;
@@ -658,21 +826,6 @@ export function DvdBounce() {
       // Logo
       drawDvdLogo(ctx, s.x, s.y, logoW, logoH, color, finalScaleX, finalScaleY);
 
-      // "CORNER!" text with fade
-      if (s.celebrating && showCornerTextRef.current) {
-        const t = s.celebrateTimer / 150;
-        const alpha = t > 0.7 ? (1 - t) / 0.3 : t > 0.2 ? 1 : t / 0.2;
-        ctx.save();
-        ctx.globalAlpha = alpha * 0.9;
-        ctx.fillStyle = color;
-        ctx.font = `bold 32px "SF Mono", "Fira Code", monospace`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        const yOffset = (1 - t) * 40;
-        ctx.fillText("CORNER!", W / 2, H / 2 - 100 - yOffset);
-        ctx.restore();
-      }
-
       ctx.restore(); // end screen shake
 
       raf = requestAnimationFrame(frame);
@@ -681,7 +834,6 @@ export function DvdBounce() {
     raf = requestAnimationFrame(frame);
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener("resize", resize);
       canvas.removeEventListener("mousemove", onMouseMove);
       canvas.removeEventListener("mouseleave", onMouseLeave);
     };
@@ -690,394 +842,215 @@ export function DvdBounce() {
   const set = (key: keyof Config, val: number) =>
     setConfig((prev) => ({ ...prev, [key]: val }));
 
-  return (
-    <div className="demo-page" style={{ background: bgColor, padding: 0, position: "relative" }}>
-      <canvas
-        ref={canvasRef}
-        onClick={() => setPaused((p) => !p)}
-        style={{ display: "block", width: "100%", height: "100%", cursor: "crosshair" }}
-      />
+  const panelControls = (
+    <div
+      onDragOver={(e) => e.preventDefault()}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      style={{ position: "relative", display: "flex", flexDirection: "column", gap: DEV_PANEL_GAP }}
+    >
+      {/* Drop overlay */}
+      {dragState !== "idle" && (
+        <div style={{
+          position: "absolute", inset: -14, zIndex: 10,
+          background: dragState === "accepting"
+            ? "rgba(8,8,10,0.92)" : "rgba(40,10,10,0.92)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          pointerEvents: "none",
+        }}>
+          <span style={{
+            color: dragState === "accepting" ? "rgba(255,255,255,0.5)" : "rgba(255,80,80,0.7)",
+            fontSize: 11, letterSpacing: "0.03em",
+          }}>
+            {dragState === "accepting" ? "Drop to apply" : "SVG or PNG only"}
+          </span>
+        </div>
+      )}
 
-      {/* Hidden file input for SVG upload */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".svg,.png,image/svg+xml,image/png"
-        onChange={handleFileUpload}
-        style={{ display: "none" }}
-      />
+      {SLIDER_DEFS.map((def) => (
+        <DevSlider
+          key={def.key}
+          label={def.label}
+          value={config[def.key]}
+          min={def.min}
+          max={def.max}
+          step={def.step}
+          format={def.display}
+          onChange={(v) => set(def.key, v)}
+        />
+      ))}
 
-      {/* Stats bar */}
+      <DevDivider />
+
+      <DevToggle label="Counter" checked={showCounter} onChange={setShowCounter} />
+      <DevToggle label="Corner celebration" checked={showCornerText} onChange={setShowCornerText} />
+      <DevToggle label="Grow on corner" checked={growOnCorner} onChange={handleSetGrowOnCorner} />
+
+      <DevDivider />
+
+      {/* Background color */}
       <div style={{
-        position: "fixed", bottom: 20, left: 20,
-        display: showCounter ? "flex" : "none", gap: 20, alignItems: "baseline",
-        fontFamily: "'SF Mono', monospace", fontSize: 11,
-        color: "rgba(255,255,255,0.3)",
+        display: "flex", justifyContent: "space-between", alignItems: "center",
       }}>
-        <span>bounces <span style={{ fontVariantNumeric: "tabular-nums" }}>{liveBounces}</span></span>
-        <span style={{ width: 1, height: 10, background: "rgba(255,255,255,0.1)", display: "inline-block" }} />
-        {/* Animated corner counter */}
-        <span style={{ display: "inline-flex", alignItems: "baseline", gap: 4 }}>
-          corners{" "}
-          <AnimatePresence mode="popLayout">
-            <motion.span
-              key={cornerKey}
-              initial={{ scale: 1.8, y: -4, color: liveColor }}
-              animate={{ scale: 1, y: 0, color: "rgba(255,255,255,0.3)" }}
-              transition={{
-                scale: { type: "spring", stiffness: 400, damping: 15 },
-                y: { type: "spring", stiffness: 400, damping: 15 },
-                color: { duration: 1.2, ease: "easeOut" },
-              }}
-              style={{
-                display: "inline-block", fontVariantNumeric: "tabular-nums",
-                fontWeight: 600, originX: "50%", originY: "50%",
-              }}
-            >
-              {liveCorners}
-            </motion.span>
-          </AnimatePresence>
+        <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, letterSpacing: "0.02em" }}>
+          Background
         </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{
+            width: 14, height: 14, borderRadius: 4,
+            background: bgColor,
+            border: "1px solid rgba(255,255,255,0.15)",
+          }} />
+          <input
+            type="text"
+            value={bgColor}
+            onChange={(e) => setBgColor(e.target.value)}
+            spellCheck={false}
+            style={{
+              width: 68, background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 4, padding: "3px 6px",
+              color: "rgba(255,255,255,0.55)", fontSize: 10,
+              fontFamily: "inherit", outline: "none",
+              letterSpacing: "0.02em",
+            }}
+          />
+        </div>
       </div>
 
-      {/* Click to pause hint */}
-      <div style={{
-        position: "fixed", bottom: 20, right: 20,
-        fontFamily: "'SF Mono', monospace", fontSize: 10,
-        color: "rgba(255,255,255,0.15)",
-        pointerEvents: "none",
-      }}>
-        {paused ? "click to resume" : "click to pause"}
-      </div>
-
-      {/* Panel toggle */}
-      <motion.button
-        onClick={() => setPanelOpen(!panelOpen)}
-        whileHover={{ scale: 1.04 }}
-        whileTap={{ scale: 0.96 }}
+      {/* Logo upload */}
+      <div
+        onClick={() => fileInputRef.current?.click()}
         style={{
-          position: "fixed", top: 20, right: 20, zIndex: 100,
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: 10, padding: "8px 14px",
-          color: "rgba(255,255,255,0.5)", fontSize: 11,
-          fontFamily: "'SF Mono', monospace", cursor: "pointer",
-          backdropFilter: "blur(20px) saturate(1.3)",
-          display: "flex", alignItems: "center", gap: 8,
+          display: "flex", cursor: "pointer",
+          border: "1px solid rgba(255,255,255,0.10)",
+          borderRadius: 8, overflow: "hidden",
         }}
       >
-        <motion.span
-          animate={{ rotate: panelOpen ? 45 : 0 }}
-          transition={{ type: "spring", stiffness: 400, damping: 25 }}
-          style={{ display: "inline-block", fontSize: 14, lineHeight: 1 }}
-        >
-          +
-        </motion.span>
-        Tune
-      </motion.button>
-
-      {/* Panel */}
-      <AnimatePresence>
-        {panelOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.97 }}
-            transition={{ type: "spring", stiffness: 500, damping: 35 }}
-            onDragOver={(e) => e.preventDefault()}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
+        <div style={{
+          width: 52, flexShrink: 0,
+          background: "rgba(255,255,255,0.03)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          borderRight: "1px solid rgba(255,255,255,0.10)",
+        }}>
+          <img
+            src={svgDataUrl || "/dvd-logo.svg"}
+            alt=""
             style={{
-              position: "fixed", top: 60, right: 20, zIndex: 99,
-              width: 240,
-              background: "rgba(12,12,12,0.75)",
-              border: `1px solid ${
-                dragState === "accepting" ? `${liveColor}88`
-                : dragState === "error" ? "rgba(255,80,80,0.5)"
-                : "rgba(255,255,255,0.07)"
-              }`,
-              borderRadius: 16,
-              maxHeight: "calc(100vh - 80px)", overflow: "hidden",
-              display: "flex", flexDirection: "column" as const,
-              backdropFilter: "blur(40px) saturate(1.4)",
-              boxShadow: dragState === "accepting"
-                ? `0 8px 32px rgba(0,0,0,0.4), 0 0 20px ${liveColor}22`
-                : "0 8px 32px rgba(0,0,0,0.4), inset 0 0.5px 0 rgba(255,255,255,0.06)",
-              fontFamily: "'SF Mono', monospace",
-              transition: "border-color 0.2s, box-shadow 0.2s",
+              height: 22, maxWidth: 36, objectFit: "contain",
+              filter: "brightness(0) invert(1)", opacity: 0.55,
             }}
-          >
-            {/* Drop overlay */}
-            {dragState !== "idle" && (
-              <div style={{
-                position: "absolute", inset: 0, zIndex: 10,
-                background: dragState === "accepting"
-                  ? "rgba(12,12,12,0.9)" : "rgba(40,10,10,0.9)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                borderRadius: 15, pointerEvents: "none",
-              }}>
-                <span style={{
-                  color: dragState === "accepting" ? liveColor : "rgba(255,80,80,0.7)",
-                  fontSize: 11, letterSpacing: "0.03em",
-                }}>
-                  {dragState === "accepting" ? "Drop to apply" : "SVG or PNG only"}
-                </span>
-              </div>
-            )}
+          />
+        </div>
+        <div style={{
+          flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+          padding: "8px 0",
+          color: "rgba(255,255,255,0.45)", fontSize: 10,
+          fontFamily: "inherit", letterSpacing: "0.03em",
+        }}>
+          {svgDataUrl ? "Replace logo" : "Upload SVG / PNG"}
+        </div>
+      </div>
 
-            <motion.div
-              animate={{ backgroundColor: liveColor }}
-              transition={{ duration: 0.3 }}
-              style={{ height: 2, width: "100%", opacity: 0.6 }}
-            />
+      <DevDivider />
 
-            <div style={{ padding: "16px 18px 14px", overflowY: "auto", flex: 1 }}>
-              {SLIDER_DEFS.map((def, i) => (
-                <motion.div
-                  key={def.key}
-                  initial={{ opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.04, duration: 0.25 }}
-                >
-                  <PanelSlider
-                    label={def.label}
-                    value={config[def.key]}
-                    min={def.min} max={def.max} step={def.step}
-                    display={def.display}
-                    accentColor={liveColor}
-                    onChange={(v) => set(def.key, v)}
-                  />
-                </motion.div>
-              ))}
-
-              {/* Toggles */}
-              <div style={{ marginTop: 8 }}>
-                <PanelToggle label="Grow on corner" value={growOnCorner} onChange={handleSetGrowOnCorner} />
-                <PanelToggle label="Corner text" value={showCornerText} onChange={setShowCornerText} />
-                <PanelToggle label="Counter" value={showCounter} onChange={setShowCounter} />
-              </div>
-
-              {/* Background color */}
-              <div style={{ marginTop: 12, marginBottom: 4 }}>
-                <div style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  marginBottom: 8,
-                }}>
-                  <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 10, letterSpacing: "0.02em" }}>
-                    Background
-                  </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div style={{
-                      width: 14, height: 14, borderRadius: 4,
-                      background: bgColor,
-                      border: "1px solid rgba(255,255,255,0.15)",
-                    }} />
-                    <input
-                      type="text"
-                      value={bgColor}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setBgColor(v);
-                      }}
-                      spellCheck={false}
-                      style={{
-                        width: 68, background: "rgba(255,255,255,0.04)",
-                        border: "1px solid rgba(255,255,255,0.08)",
-                        borderRadius: 4, padding: "3px 6px",
-                        color: "rgba(255,255,255,0.4)", fontSize: 10,
-                        fontFamily: "inherit", outline: "none",
-                        letterSpacing: "0.02em",
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Logo upload */}
-              <div style={{ marginTop: 8 }}>
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{
-                    display: "flex", cursor: "pointer",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    borderRadius: 8, overflow: "hidden",
-                  }}
-                >
-                  <div style={{
-                    width: 52, flexShrink: 0,
-                    background: "rgba(255,255,255,0.03)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    borderRight: "1px solid rgba(255,255,255,0.06)",
-                  }}>
-                    <img
-                      src={svgDataUrl || "/dvd-logo.svg"}
-                      alt=""
-                      style={{
-                        height: 22, maxWidth: 36, objectFit: "contain",
-                        filter: "brightness(0) invert(1)", opacity: 0.4,
-                      }}
-                    />
-                  </div>
-                  <div style={{
-                    flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-                    padding: "8px 0",
-                    color: "rgba(255,255,255,0.3)", fontSize: 10,
-                    fontFamily: "inherit", letterSpacing: "0.03em",
-                  }}>
-                    {svgDataUrl ? "Replace logo" : "Upload SVG / PNG"}
-                  </div>
-                </div>
-                {svgDataUrl && (
-                  <button
-                    onClick={resetLogo}
-                    style={{
-                      width: "100%", background: "none", border: "none",
-                      padding: "5px 0 0", color: "rgba(255,255,255,0.18)",
-                      fontSize: 9, fontFamily: "inherit", cursor: "pointer",
-                      letterSpacing: "0.02em", textAlign: "center",
-                    }}
-                  >
-                    Reset to DVD
-                  </button>
-                )}
-              </div>
-
-              {/* Actions */}
-              <div style={{ marginTop: 14, display: "flex", gap: 6 }}>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => { setConfig(DEFAULT_CONFIG); stateRef.current.growthScale = 1; }}
-                  style={{
-                    flex: 1,
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    borderRadius: 8, padding: "7px 0",
-                    color: "rgba(255,255,255,0.25)", fontSize: 10,
-                    fontFamily: "inherit", cursor: "pointer",
-                    letterSpacing: "0.03em",
-                  }}
-                >
-                  Reset
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={handleExport}
-                  style={{
-                    flex: 1,
-                    background: `${liveColor}22`,
-                    border: `1px solid ${liveColor}44`,
-                    borderRadius: 8, padding: "7px 0",
-                    color: liveColor, fontSize: 10,
-                    fontFamily: "inherit", cursor: "pointer",
-                    letterSpacing: "0.04em", fontWeight: 600,
-                  }}
-                >
-                  Export
-                </motion.button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Actions */}
+      <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ flex: 1 }}>
+          <DevButton
+            label="Reset"
+            onClick={() => { setConfig(DEFAULT_CONFIG); stateRef.current.growthScale = 1; stateRef.current.growthHits = 0; resetLogo(); setBgColor("#111111"); }}
+            variant="secondary"
+          />
+        </div>
+        <div style={{ flex: 1 }}>
+          <DevButton label="Export" onClick={handleExport} variant="primary" />
+        </div>
+      </div>
     </div>
   );
-}
-
-function PanelSlider({ label, value, min, max, step, onChange, display, accentColor }: {
-  label: string; value: number; min: number; max: number; step: number;
-  onChange: (v: number) => void; display?: (v: number) => string;
-  accentColor: string;
-}) {
-  const pct = ((value - min) / (max - min)) * 100;
-  const shown = display ? display(value) : step < 0.1 ? value.toFixed(2) : step < 1 ? value.toFixed(1) : String(value);
-  const [dragging, setDragging] = useState(false);
 
   return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{
-        display: "flex", justifyContent: "space-between", marginBottom: 5,
-        fontSize: 10, letterSpacing: "0.02em",
-      }}>
-        <span style={{ color: "rgba(255,255,255,0.45)" }}>{label}</span>
-        <motion.span
-          animate={{ color: dragging ? accentColor : "rgba(255,255,255,0.25)" }}
-          style={{ fontVariantNumeric: "tabular-nums" }}
-        >
-          {shown}
-        </motion.span>
-      </div>
-      <div style={{ position: "relative", height: 20, display: "flex", alignItems: "center" }}>
-        <div style={{
-          position: "absolute", left: 0, right: 0, height: 2, borderRadius: 1,
-          background: "rgba(255,255,255,0.06)",
-        }} />
-        <motion.div
-          animate={{ backgroundColor: dragging ? accentColor : "rgba(255,255,255,0.15)" }}
-          transition={{ duration: 0.2 }}
-          style={{
-            position: "absolute", left: 0, width: `${pct}%`, height: 2, borderRadius: 1,
-          }}
+    <DevPanel label="DVD Bounce" controls={panelControls} background={bgColor}>
+      <div ref={contentRef} style={{ position: "absolute", inset: 0 }}>
+        <canvas
+          ref={canvasRef}
+          onClick={() => setPaused((p) => !p)}
+          style={{ display: "block", width: "100%", height: "100%", cursor: "crosshair" }}
         />
-        <motion.div
-          animate={{
-            scale: dragging ? 1.4 : 1,
-            backgroundColor: dragging ? accentColor : "#fff",
-            boxShadow: dragging
-              ? `0 0 8px ${accentColor}44, 0 1px 3px rgba(0,0,0,0.4)`
-              : "0 1px 3px rgba(0,0,0,0.3)",
-          }}
-          transition={{ type: "spring", stiffness: 500, damping: 30 }}
-          style={{
-            position: "absolute", left: `${pct}%`, transform: "translateX(-50%)",
-            width: 8, height: 8, borderRadius: 4,
-            pointerEvents: "none",
-          }}
-        />
+
         <input
-          type="range" min={min} max={max} step={step} value={value}
-          onPointerDown={() => setDragging(true)}
-          onPointerUp={() => setDragging(false)}
-          onPointerCancel={() => setDragging(false)}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-          style={{
-            position: "absolute", left: -4, right: -4, width: "calc(100% + 8px)", height: 20,
-            opacity: 0, cursor: "pointer", margin: 0,
-          }}
+          ref={fileInputRef}
+          type="file"
+          accept=".svg,.png,image/svg+xml,image/png"
+          onChange={handleFileUpload}
+          style={{ display: "none" }}
         />
-      </div>
-    </div>
-  );
-}
 
-function PanelToggle({ label, value, onChange }: {
-  label: string; value: boolean; onChange: (v: boolean) => void;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        marginBottom: 10, cursor: "pointer",
-      }}
-      onClick={() => onChange(!value)}
-    >
-      <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 10, letterSpacing: "0.02em" }}>
-        {label}
-      </span>
-      <div style={{
-        width: 28, height: 16, borderRadius: 8, position: "relative",
-        background: value ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.06)",
-        transition: "background 0.2s",
-      }}>
+        {/* Flying CORNER! text — physics throw into counter */}
+        {cornerFlies.map((fly) => (
+          <CornerFlyText
+            key={fly.key}
+            startX={fly.startX}
+            startY={fly.startY}
+            targetX={fly.targetX}
+            targetY={fly.targetY}
+            color={fly.color}
+            onComplete={() => {
+              setDisplayedCorners((d) => d + 1);
+              setCornerKey((k) => k + 1);
+              setCornerFlies((prev) => prev.filter((f) => f.key !== fly.key));
+            }}
+          />
+        ))}
+
+        {/* Stats bar */}
         <div style={{
-          width: 12, height: 12, borderRadius: 6, position: "absolute",
-          top: 2, left: value ? 14 : 2,
-          background: value ? "#fff" : "rgba(255,255,255,0.3)",
-          transition: "left 0.2s, background 0.2s",
-        }} />
+          position: "absolute", bottom: 20, left: 20,
+          display: showCounter ? "flex" : "none", gap: 20, alignItems: "baseline",
+          fontFamily: "'SF Mono', monospace", fontSize: 11,
+          color: overlayColor,
+          transition: "color 0.3s",
+        }}>
+          <span>bounces <span style={{ fontVariantNumeric: "tabular-nums" }}>{liveBounces}</span></span>
+          <span style={{ width: 1, height: 10, background: overlayDivider, display: "inline-block", transition: "background 0.3s" }} />
+          <span style={{ display: "inline-flex", alignItems: "baseline", gap: 4 }}>
+            corners{" "}
+            <span ref={cornerCounterRef} style={{ display: "inline-block" }}>
+            <AnimatePresence mode="popLayout">
+              <motion.span
+                key={cornerKey}
+                initial={{ scale: 1.8, y: -4, color: liveColor }}
+                animate={{ scale: 1, y: 0, color: overlayColor }}
+                transition={{
+                  scale: { type: "spring", stiffness: 400, damping: 15 },
+                  y: { type: "spring", stiffness: 400, damping: 15 },
+                  color: { duration: 1.2, ease: "easeOut" },
+                }}
+                style={{
+                  display: "inline-block", fontVariantNumeric: "tabular-nums",
+                  fontWeight: 600, originX: "50%", originY: "50%",
+                }}
+              >
+                {displayedCorners}
+              </motion.span>
+            </AnimatePresence>
+            </span>
+          </span>
+        </div>
+
+        {/* Click to pause hint */}
+        <div style={{
+          position: "absolute", bottom: 20, right: 20,
+          fontFamily: "'SF Mono', monospace", fontSize: 11,
+          color: overlayColor,
+          pointerEvents: "none",
+          transition: "color 0.3s",
+        }}>
+          {paused ? "click to resume" : "click to pause"}
+        </div>
       </div>
-    </div>
+    </DevPanel>
   );
 }
