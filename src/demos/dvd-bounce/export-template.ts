@@ -8,8 +8,7 @@ interface ExportOptions {
   config: {
     speed: number;
     size: number;
-    elasticity: number;
-    deform: number;
+    bounce: number;
     shake: number;
     trail: number;
     cornerSeek: number;
@@ -47,7 +46,9 @@ canvas{display:block;width:100%;height:100%}
 <script>
 (function(){
 var COLORS=["#e24a4a","#4a9ee2","#e2c84a","#4ae270","#c84ae2","#e2824a","#4ae2d4"];
-var CFG={speed:${config.speed},size:${config.size},elasticity:${config.elasticity},deform:${config.deform},shake:${config.shake},trail:${config.trail},cornerSeek:${config.cornerSeek}};
+var CFG={speed:${config.speed},size:${config.size},bounce:${config.bounce},shake:${config.shake},trail:${config.trail},cornerSeek:${config.cornerSeek}};
+var elasticity=CFG.bounce*0.85;
+var deformAmt=CFG.bounce*0.75;
 var LOGO_W=${logoW}*CFG.size,LOGO_H=80*CFG.size;
 var SHOW_CORNER_TEXT=${showCornerText};
 var SHOW_COUNTER=${showCounter};
@@ -79,8 +80,9 @@ var s={
   particles:[],
   celebrating:false,celebrateTimer:0,
   bounceCount:0,cornerCount:0,
-  bounceSinceNudge:0,
-  cornerQueued:false,
+  cornerCooldown:0,
+  consecutiveCornerHits:0,
+  burstScale:{value:1,velocity:0},
   shakeX:{value:0,velocity:0},
   shakeY:{value:0,velocity:0},
   trailPositions:[]
@@ -156,31 +158,37 @@ function frame(){
   var W=window.innerWidth;
   var H=window.innerHeight;
 
-  // Corner seek steering
-  if(s.cornerQueued){
-    var targetX=s.vx>0?W-LOGO_W:0;
-    var targetY=s.vy>0?H-LOGO_H:0;
-    var dx=targetX-s.x;
-    var dy=targetY-s.y;
-    var targetAngle=Math.atan2(dy,dx);
-    var currentAngle=Math.atan2(s.vy,s.vx);
-    var angleDiff=targetAngle-currentAngle;
-    while(angleDiff>Math.PI)angleDiff-=2*Math.PI;
-    while(angleDiff<-Math.PI)angleDiff+=2*Math.PI;
-    var maxSteer=0.02;
-    var steer=(angleDiff>0?1:-1)*Math.min(maxSteer,Math.abs(angleDiff)*0.25);
-    var cos=Math.cos(steer);
-    var sin=Math.sin(steer);
-    var nvx=s.vx*cos-s.vy*sin;
-    var nvy=s.vx*sin+s.vy*cos;
-    s.vx=nvx;
-    s.vy=nvy;
+  // Mid-flight steering toward nearest corner
+  if(CFG.cornerSeek>0.3){
+    var bounceW=W-LOGO_W,bounceH=H-LOGO_H;
+    if(bounceW>0&&bounceH>0){
+      var corners=[[0,0],[bounceW,0],[0,bounceH],[bounceW,bounceH]];
+      var minDist=1e9,ncx=0,ncy=0;
+      for(var ci=0;ci<4;ci++){
+        var d=Math.sqrt(Math.pow(s.x-corners[ci][0],2)+Math.pow(s.y-corners[ci][1],2));
+        if(d<minDist){minDist=d;ncx=corners[ci][0];ncy=corners[ci][1];}
+      }
+      if(minDist>1){
+        var ta=Math.atan2(ncy-s.y,ncx-s.x);
+        var ca=Math.atan2(s.vy,s.vx);
+        var diff=ta-ca;
+        while(diff>Math.PI)diff-=2*Math.PI;
+        while(diff<-Math.PI)diff+=2*Math.PI;
+        var prox=1-Math.min(1,minDist/Math.max(bounceW,bounceH));
+        var ms=CFG.cornerSeek*0.008*(1+prox*3);
+        var st=(diff>0?1:-1)*Math.min(ms,Math.abs(diff)*0.05);
+        var co=Math.cos(st),si=Math.sin(st);
+        var nvx=s.vx*co-s.vy*si;
+        var nvy=s.vx*si+s.vy*co;
+        s.vx=nvx;s.vy=nvy;
+      }
+    }
   }
 
   // Speed normalization
   var speed=Math.sqrt(s.vx*s.vx+s.vy*s.vy);
   if(speed>0.1){
-    var targetSpeed=s.cornerQueued?CFG.speed:speed+(CFG.speed-speed)*0.005;
+    var targetSpeed=speed+(CFG.speed-speed)*0.005;
     var sc=targetSpeed/speed;
     s.vx*=sc;
     s.vy*=sc;
@@ -195,24 +203,47 @@ function frame(){
   if(s.y<=0){s.y=0;s.vy=Math.abs(s.vy);hitY=true;}
   else if(s.y+LOGO_H>=H){s.y=H-LOGO_H;s.vy=-Math.abs(s.vy);hitY=true;}
 
+  // Corner snap
+  if(CFG.cornerSeek>0&&((hitX&&!hitY)||(!hitX&&hitY))){
+    var snapDist=CFG.speed*3+CFG.cornerSeek*20;
+    if(hitX&&!hitY){
+      if(s.y<snapDist){s.y=0;s.vy=Math.abs(s.vy);hitY=true;}
+      else if(s.y+LOGO_H>H-snapDist){s.y=H-LOGO_H;s.vy=-Math.abs(s.vy);hitY=true;}
+    }else{
+      if(s.x<snapDist){s.x=0;s.vx=Math.abs(s.vx);hitX=true;}
+      else if(s.x+LOGO_W>W-snapDist){s.x=W-LOGO_W;s.vx=-Math.abs(s.vx);hitX=true;}
+    }
+  }
+
+  if(s.cornerCooldown>0)s.cornerCooldown--;
+
   if(hitX||hitY){
     s.colorIndex=(s.colorIndex+1)%COLORS.length;
     s.bounceCount++;
-    s.bounceSinceNudge++;
     var impactSpeed=Math.sqrt(s.vx*s.vx+s.vy*s.vy);
     var impactStrength=Math.min(1,impactSpeed/(CFG.speed*2));
-    var squashAmount=impactStrength*(0.3+CFG.elasticity*0.4);
-    var deformScale=CFG.deform*2;
+    var squashAmount=impactStrength*(0.3+elasticity*0.4);
+    var deformScale=deformAmt*2;
 
-    if(hitX&&hitY){
+    if(hitX&&hitY&&s.cornerCooldown<=0){
       s.deformX.velocity=-squashAmount*80*deformScale;
       s.deformY.velocity=-squashAmount*80*deformScale;
       s.celebrating=true;
       s.celebrateTimer=150;
       s.cornerCount++;
-      s.cornerQueued=false;
-      s.bounceSinceNudge=0;
-      if(s.particles.length<300)spawnConfetti(s.x+LOGO_W/2,s.y+LOGO_H/2);
+      s.cornerCooldown=10;
+      s.consecutiveCornerHits++;
+      s.burstScale.value=1.2;
+      s.burstScale.velocity=0;
+      if(CFG.cornerSeek>0&&s.consecutiveCornerHits>=2){
+        var pa=(0.15+Math.random()*0.25)*(Math.random()<0.5?1:-1);
+        var co=Math.cos(pa),si=Math.sin(pa);
+        var pvx=s.vx*co-s.vy*si;
+        var pvy=s.vx*si+s.vy*co;
+        s.vx=pvx;s.vy=pvy;
+        s.consecutiveCornerHits=0;
+      }
+      if(SHOW_CORNER_TEXT&&s.particles.length<300)spawnConfetti(s.x+LOGO_W/2,s.y+LOGO_H/2);
       if(CFG.shake>0){
         var shakeStr=CFG.shake*25;
         s.shakeX.velocity+=(Math.random()*2-1)*shakeStr;
@@ -226,20 +257,39 @@ function frame(){
         s.deformY.velocity=-squashAmount*60*deformScale;
         s.deformX.velocity=squashAmount*30*deformScale;
       }
-      if(CFG.cornerSeek>0&&!s.cornerQueued){
-        if(Math.random()<CFG.cornerSeek){
-          s.cornerQueued=true;
-          s.bounceSinceNudge=0;
+      // Corner seek: nudge velocity to hit nearest corner
+      if(CFG.cornerSeek>0){
+        var bW=W-LOGO_W,bH=H-LOGO_H;
+        if(bW>0&&bH>0){
+          var tVx=s.vx,tVy=s.vy;
+          if(hitX&&!hitY){
+            var tx=bW/Math.abs(s.vx);
+            var dist=s.vy>0?(bH-s.y):s.y;
+            if(dist<bH*0.08)dist+=bH;
+            tVy=(s.vy>0?1:-1)*dist/tx;
+          }else if(hitY&&!hitX){
+            var ty=bH/Math.abs(s.vy);
+            var dist=s.vx>0?(bW-s.x):s.x;
+            if(dist<bW*0.08)dist+=bW;
+            tVx=(s.vx>0?1:-1)*dist/ty;
+          }
+          var nudge=Math.min(1,CFG.cornerSeek*1.05);
+          s.vx=s.vx+(tVx-s.vx)*nudge;
+          s.vy=s.vy+(tVy-s.vy)*nudge;
+          var ns=Math.sqrt(s.vx*s.vx+s.vy*s.vy);
+          if(ns>0.1){s.vx=(s.vx/ns)*CFG.speed;s.vy=(s.vy/ns)*CFG.speed;}
         }
       }
+      s.consecutiveCornerHits=0;
     }
   }
 
   // Spring deformation
-  var stiffness=300+(1-CFG.elasticity)*400;
-  var damping=8+(1-CFG.elasticity)*25;
+  var stiffness=300+(1-elasticity)*400;
+  var damping=8+(1-elasticity)*25;
   stepSpring(s.deformX,1,stiffness,damping);
   stepSpring(s.deformY,1,stiffness,damping);
+  stepSpring(s.burstScale,1,200,18);
   var rawX=s.deformX.value;
   var rawY=s.deformY.value;
   var area=rawX*rawY;
@@ -332,8 +382,10 @@ function frame(){
     }
   }
 
-  // Logo
-  drawLogo(s.x,s.y,LOGO_W,LOGO_H,color,finalScaleX,finalScaleY);
+  // Logo (with burst scale)
+  var bsW=LOGO_W*s.burstScale.value,bsH=LOGO_H*s.burstScale.value;
+  var bsX=s.x-(bsW-LOGO_W)/2,bsY=s.y-(bsH-LOGO_H)/2;
+  drawLogo(bsX,bsY,bsW,bsH,color,finalScaleX,finalScaleY);
 
   // CORNER! text
   if(SHOW_CORNER_TEXT&&s.celebrating){

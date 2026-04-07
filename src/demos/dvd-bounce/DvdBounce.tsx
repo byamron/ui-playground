@@ -20,8 +20,7 @@ const DVD_COLORS = [
 
 const BASE_LOGO_W = 180;
 const BASE_LOGO_H = 80; // matches the real DVD logo's ~2.27:1 aspect ratio
-const GROWTH_FACTOR = 1.2; // 20% bigger from current size each corner hit
-const MAX_GROWTH_HITS = 6; // reset to base size after this many growth steps
+const CORNER_BURST_SCALE = 1.2; // temporary scale-up on corner celebration
 
 interface Particle {
   x: number; y: number; vx: number; vy: number;
@@ -33,8 +32,7 @@ interface Particle {
 interface Config {
   speed: number;
   size: number;
-  elasticity: number;
-  deform: number;
+  bounce: number;
   shake: number;
   trail: number;
   cornerSeek: number;
@@ -44,13 +42,42 @@ interface Config {
 const DEFAULT_CONFIG: Config = {
   speed: 2,
   size: 1,
-  elasticity: 0,
-  deform: 0,
+  bounce: 0,
   shake: 0,
   trail: 0,
   cornerSeek: 0,
   mouseGravity: 0,
 };
+
+interface DvdPreset {
+  label: string;
+  config: Config;
+  showCounter: boolean;
+  showCornerText: boolean;
+}
+
+const PRESETS: DvdPreset[] = [
+  {
+    label: "Classic",
+    config: { ...DEFAULT_CONFIG },
+    showCounter: true,
+    showCornerText: false,
+  },
+  {
+    label: "Ludicrous",
+    config: {
+      speed: 6,
+      size: 1,
+      bounce: 0.9,
+      shake: 1,
+      trail: 0.6,
+      cornerSeek: 0.63,
+      mouseGravity: 1,
+    },
+    showCounter: true,
+    showCornerText: true,
+  },
+];
 
 const SLIDER_DEFS: {
   key: keyof Config; label: string; min: number; max: number; step: number;
@@ -58,11 +85,10 @@ const SLIDER_DEFS: {
 }[] = [
   { key: "speed", label: "Speed", min: 0.5, max: 6, step: 0.1 },
   { key: "size", label: "Size", min: 0.3, max: 2.5, step: 0.1, display: (v) => `${v.toFixed(1)}x` },
-  { key: "elasticity", label: "Elasticity", min: 0, max: 0.85, step: 0.01 },
-  { key: "deform", label: "Deform", min: 0, max: 0.75, step: 0.01 },
+  { key: "bounce", label: "Bounce", min: 0, max: 0.9, step: 0.01 },
   { key: "shake", label: "Shake", min: 0, max: 1, step: 0.01 },
   { key: "trail", label: "Trail", min: 0, max: 1, step: 0.01 },
-  { key: "cornerSeek", label: "Corner seek", min: 0, max: 1, step: 0.01, display: (v) => `${Math.round(v * 100)}%` },
+  { key: "cornerSeek", label: "Corner seek", min: 0, max: 0.7, step: 0.01, display: (v) => `${Math.round(v / 0.7 * 100)}%` },
   { key: "mouseGravity", label: "Mouse gravity", min: 0, max: 1, step: 0.01 },
 ];
 
@@ -208,12 +234,22 @@ export function DvdBounce() {
   const [logoAspect, setLogoAspect] = useState(BASE_LOGO_W / BASE_LOGO_H);
   const [showCornerText, setShowCornerText] = useState(false);
   const [showCounter, setShowCounter] = useState(true);
+  const [ludicrousFlare, setLudicrousFlare] = useState(false);
+  const presetAnimRef = useRef<number>(0);
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
   pausedRef.current = paused;
-  const [growOnCorner, setGrowOnCorner] = useState(false);
-  const growOnCornerRef = useRef(true);
-  growOnCornerRef.current = growOnCorner;
+  const [activePreset, setActivePreset] = useState<number | null>(0);
+  const presetModified = useMemo(() => {
+    if (activePreset === null) return false;
+    const p = PRESETS[activePreset];
+    return (
+      JSON.stringify(config) !== JSON.stringify(p.config) ||
+      showCounter !== p.showCounter ||
+      showCornerText !== p.showCornerText
+    );
+  }, [activePreset, config, showCounter, showCornerText]);
+
   const [bgColor, setBgColor] = useState("#111111");
   const bgIsLight = useMemo(() => relativeLuminance(bgColor) > 0.18, [bgColor]);
   const overlayColor = bgIsLight ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.45)";
@@ -243,10 +279,10 @@ export function DvdBounce() {
     celebrating: false, celebrateTimer: 0,
     mouseX: -1000, mouseY: -1000, mouseActive: false,
     bounceCount: 0, cornerCount: 0,
-    bounceSinceNudge: 0,
-    cornerQueued: false,
-    growthScale: 1,
-    growthHits: 0,
+    cornerCooldown: 0,
+    consecutiveCornerHits: 0,
+    burstScale: { value: 1, velocity: 0 } as DeformSpring,
+    jetBoostTimer: 0, // frames remaining for jet boost effect
     shakeX: { value: 0, velocity: 0 } as DeformSpring,
     shakeY: { value: 0, velocity: 0 } as DeformSpring,
     trailPositions: [] as { x: number; y: number }[],
@@ -266,10 +302,6 @@ export function DvdBounce() {
       });
   }, []);
 
-  const handleSetGrowOnCorner = useCallback((v: boolean) => {
-    setGrowOnCorner(v);
-    if (!v) { stateRef.current.growthScale = 1; stateRef.current.growthHits = 0; }
-  }, []);
 
   const isSupportedFile = useCallback((file: File) => {
     return file.type.includes("svg") || file.name.endsWith(".svg") ||
@@ -318,7 +350,7 @@ export function DvdBounce() {
           }
         }
         setLogoAspect(Math.max(0.5, Math.min(10, aspect || BASE_LOGO_W / BASE_LOGO_H)));
-        stateRef.current.growthScale = 1; stateRef.current.growthHits = 0;
+        stateRef.current.burstScale = { value: 1, velocity: 0 };
       };
       img.src = dataUrl;
     };
@@ -374,7 +406,7 @@ export function DvdBounce() {
     const img = new Image();
     img.src = "/dvd-logo.svg";
     img.onload = () => { logoImgRef.current = img; };
-    stateRef.current.growthScale = 1; stateRef.current.growthHits = 0;
+    stateRef.current.burstScale = { value: 1, velocity: 0 };
   }, []);
 
   const handleExport = useCallback(() => {
@@ -385,8 +417,7 @@ export function DvdBounce() {
       config: {
         speed: configRef.current.speed,
         size: configRef.current.size,
-        elasticity: configRef.current.elasticity,
-        deform: configRef.current.deform,
+        bounce: configRef.current.bounce,
         shake: configRef.current.shake,
         trail: configRef.current.trail,
         cornerSeek: configRef.current.cornerSeek,
@@ -533,8 +564,12 @@ export function DvdBounce() {
       const H = containerH;
       frameCount++;
 
-      const logoW = logoDimsRef.current.w * c.size * s.growthScale;
-      const logoH = logoDimsRef.current.h * c.size * s.growthScale;
+      // Derive elasticity + deform from combined bounce knob
+      const elasticity = c.bounce * 0.85;
+      const deformAmt = c.bounce * 0.75;
+
+      const logoW = logoDimsRef.current.w * c.size * s.burstScale.value;
+      const logoH = logoDimsRef.current.h * c.size * s.burstScale.value;
 
       if (!pausedRef.current) {
       // --- Simulation (skipped when paused) ---
@@ -563,39 +598,55 @@ export function DvdBounce() {
             s.vx = (s.vx / speed) * maxSpeed;
             s.vy = (s.vy / speed) * maxSpeed;
           }
-          if (s.cornerQueued) s.cornerQueued = false;
+          s.consecutiveCornerHits = 0;
         }
       }
 
-      // Curved path steering toward corner
-      if (s.cornerQueued) {
-        const targetX = s.vx > 0 ? W - logoW : 0;
-        const targetY = s.vy > 0 ? H - logoH : 0;
-        const dx = targetX - s.x;
-        const dy = targetY - s.y;
-        const targetAngle = Math.atan2(dy, dx);
-        const currentAngle = Math.atan2(s.vy, s.vx);
-        let angleDiff = targetAngle - currentAngle;
-        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-        // Constant-rate turn with proportional fine-tuning near target
-        const maxSteer = 0.02;
-        const steer = Math.sign(angleDiff) * Math.min(maxSteer, Math.abs(angleDiff) * 0.25);
-        const cos = Math.cos(steer);
-        const sin = Math.sin(steer);
-        const newVx = s.vx * cos - s.vy * sin;
-        const newVy = s.vx * sin + s.vy * cos;
-        s.vx = newVx;
-        s.vy = newVy;
+      // Mid-flight steering toward nearest corner (only at higher seek values)
+      // Adds gentle curvature that looks natural
+      if (c.cornerSeek > 0.3) {
+        const bounceW = W - logoW;
+        const bounceH = H - logoH;
+        if (bounceW > 0 && bounceH > 0) {
+          // Find nearest corner
+          const corners = [
+            [0, 0], [bounceW, 0], [0, bounceH], [bounceW, bounceH],
+          ];
+          let minDist = Infinity;
+          let nearestCx = 0, nearestCy = 0;
+          for (const [cx, cy] of corners) {
+            const d = Math.hypot(s.x - cx, s.y - cy);
+            if (d < minDist) { minDist = d; nearestCx = cx; nearestCy = cy; }
+          }
+          const dx = nearestCx - s.x;
+          const dy = nearestCy - s.y;
+          if (minDist > 1) {
+            const targetAngle = Math.atan2(dy, dx);
+            const currentAngle = Math.atan2(s.vy, s.vx);
+            let diff = targetAngle - currentAngle;
+            while (diff > Math.PI) diff -= 2 * Math.PI;
+            while (diff < -Math.PI) diff += 2 * Math.PI;
+            // Very gentle — stronger when close to the corner
+            const proximity = 1 - Math.min(1, minDist / Math.max(bounceW, bounceH));
+            const maxSteer = c.cornerSeek * 0.008 * (1 + proximity * 3);
+            const steer = Math.sign(diff) * Math.min(maxSteer, Math.abs(diff) * 0.05);
+            const cos = Math.cos(steer);
+            const sin = Math.sin(steer);
+            const nvx = s.vx * cos - s.vy * sin;
+            const nvy = s.vx * sin + s.vy * cos;
+            s.vx = nvx;
+            s.vy = nvy;
+          }
+        }
       }
 
       // Restore to base speed
       const speed = Math.sqrt(s.vx * s.vx + s.vy * s.vy);
       if (speed > 0.1) {
-        const targetSpeed = s.cornerQueued ? c.speed : speed + (c.speed - speed) * 0.005;
-        const scale = targetSpeed / speed;
-        s.vx *= scale;
-        s.vy *= scale;
+        const targetSpeed = speed + (c.speed - speed) * 0.005;
+        const sc = targetSpeed / speed;
+        s.vx *= sc;
+        s.vy *= sc;
       }
 
       s.x += s.vx;
@@ -609,37 +660,59 @@ export function DvdBounce() {
       if (s.y <= 0) { s.y = 0; s.vy = Math.abs(s.vy); hitY = true; }
       else if (s.y + logoH >= H) { s.y = H - logoH; s.vy = -Math.abs(s.vy); hitY = true; }
 
-      // No corner snap — near-misses stay as near-misses (adds suspense)
+      // Corner snap: when seek is active and one axis hits a wall,
+      // snap the other axis if it's close enough — otherwise corner hits
+      // are nearly impossible with discrete movement on arbitrary window sizes
+      if (c.cornerSeek > 0 && ((hitX && !hitY) || (!hitX && hitY))) {
+        const snapDist = c.speed * 3 + c.cornerSeek * 20;
+        if (hitX && !hitY) {
+          if (s.y < snapDist) { s.y = 0; s.vy = Math.abs(s.vy); hitY = true; }
+          else if (s.y + logoH > H - snapDist) { s.y = H - logoH; s.vy = -Math.abs(s.vy); hitY = true; }
+        } else {
+          if (s.x < snapDist) { s.x = 0; s.vx = Math.abs(s.vx); hitX = true; }
+          else if (s.x + logoW > W - snapDist) { s.x = W - logoW; s.vx = -Math.abs(s.vx); hitX = true; }
+        }
+      }
+
+      // Decrement corner cooldown
+      if (s.cornerCooldown > 0) s.cornerCooldown--;
 
       if (hitX || hitY) {
         s.colorIndex = (s.colorIndex + 1) % DVD_COLORS.length;
         s.bounceCount++;
-        s.bounceSinceNudge++;
 
         const impactSpeed = Math.sqrt(s.vx * s.vx + s.vy * s.vy);
         const impactStrength = Math.min(1, impactSpeed / (c.speed * 2));
-        const squashAmount = impactStrength * (0.3 + c.elasticity * 0.4);
-        const deformScale = c.deform * 2;
+        const squashAmount = impactStrength * (0.3 + elasticity * 0.4);
+        const deformScale = deformAmt * 2;
 
-        if (hitX && hitY) {
+        if (hitX && hitY && s.cornerCooldown <= 0) {
           // CORNER HIT
           s.deformX.velocity = -squashAmount * 80 * deformScale;
           s.deformY.velocity = -squashAmount * 80 * deformScale;
           s.celebrating = true;
           s.celebrateTimer = 150;
           s.cornerCount++;
-          s.cornerQueued = false;
-          s.bounceSinceNudge = 0;
+          s.cornerCooldown = 10; // prevent re-trigger on consecutive frames
+          s.consecutiveCornerHits++;
 
-          // Grow on corner hit (if enabled) — reset after MAX_GROWTH_HITS
-          if (growOnCornerRef.current) {
-            s.growthHits = (s.growthHits || 0) + 1;
-            if (s.growthHits > MAX_GROWTH_HITS) {
-              s.growthScale = 1;
-              s.growthHits = 0;
-            } else {
-              s.growthScale *= GROWTH_FACTOR;
-            }
+          // After 2+ consecutive diagonal corner hits, perturb the angle
+          // so it misses the next corner — breaks the boring diagonal loop
+          if (c.cornerSeek > 0 && s.consecutiveCornerHits >= 2) {
+            const perturbAngle = (0.15 + Math.random() * 0.25) * (Math.random() < 0.5 ? 1 : -1);
+            const cos = Math.cos(perturbAngle);
+            const sin = Math.sin(perturbAngle);
+            const pvx = s.vx * cos - s.vy * sin;
+            const pvy = s.vx * sin + s.vy * cos;
+            s.vx = pvx;
+            s.vy = pvy;
+            s.consecutiveCornerHits = 0;
+          }
+
+          // Celebration burst — temporary 1.2x scale-up that springs back
+          if (showCornerTextRef.current) {
+            s.burstScale.value = CORNER_BURST_SCALE;
+            s.burstScale.velocity = 0;
           }
 
           // Confetti from logo center (cap particles to prevent overload)
@@ -691,12 +764,45 @@ export function DvdBounce() {
             s.deformX.velocity = squashAmount * 30 * deformScale;
           }
 
-          if (c.cornerSeek > 0 && !s.cornerQueued) {
-            if (Math.random() < c.cornerSeek) {
-              s.cornerQueued = true;
-              s.bounceSinceNudge = 0;
+          // Corner seek: at each wall bounce, adjust the velocity so the logo
+          // will reach the opposite wall on BOTH axes at the same time —
+          // i.e. hit a corner. We keep the current direction and just tweak
+          // the magnitude ratio, then renormalise to preserve speed.
+          if (c.cornerSeek > 0) {
+            const bounceW = W - logoW;
+            const bounceH = H - logoH;
+            if (bounceW > 0 && bounceH > 0) {
+              let targetVx = s.vx, targetVy = s.vy;
+
+              if (hitX && !hitY) {
+                // Bounced off vertical wall — adjust vy so y reaches its
+                // nearest wall exactly when x crosses the full width
+                const tx = bounceW / Math.abs(s.vx);
+                let dist = s.vy > 0 ? (bounceH - s.y) : s.y;
+                // If very close to y-wall already, aim for the far one
+                if (dist < bounceH * 0.08) dist += bounceH;
+                targetVy = Math.sign(s.vy) * dist / tx;
+              } else if (hitY && !hitX) {
+                const ty = bounceH / Math.abs(s.vy);
+                let dist = s.vx > 0 ? (bounceW - s.x) : s.x;
+                if (dist < bounceW * 0.08) dist += bounceW;
+                targetVx = Math.sign(s.vx) * dist / ty;
+              }
+
+              const nudge = Math.min(1.0, c.cornerSeek * 1.05);
+              s.vx = s.vx + (targetVx - s.vx) * nudge;
+              s.vy = s.vy + (targetVy - s.vy) * nudge;
+
+              // Renormalise to preserve speed
+              const newSpd = Math.sqrt(s.vx * s.vx + s.vy * s.vy);
+              if (newSpd > 0.1) {
+                s.vx = (s.vx / newSpd) * c.speed;
+                s.vy = (s.vy / newSpd) * c.speed;
+              }
             }
           }
+
+          s.consecutiveCornerHits = 0;
         }
       }
 
@@ -727,13 +833,46 @@ export function DvdBounce() {
         if (s.celebrateTimer <= 0) s.celebrating = false;
       }
 
+      // Jet boost exhaust — big flame cone behind the logo
+      if (s.jetBoostTimer > 0) {
+        s.jetBoostTimer--;
+        const intensity = s.jetBoostTimer / 120;
+        const travelAngle = Math.atan2(s.vy, s.vx);
+        const exhaustAngle = travelAngle + Math.PI;
+        const nozzleX = s.x + logoW / 2 - Math.cos(travelAngle) * logoW * 0.5;
+        const nozzleY = s.y + logoH / 2 - Math.sin(travelAngle) * logoH * 0.5;
+        const count = Math.ceil(12 * intensity);
+        for (let i = 0; i < count; i++) {
+          const spread = (Math.random() - 0.5) * 0.5;
+          const spd = 4 + Math.random() * 9;
+          const heat = Math.random();
+          const color = heat > 0.75 ? "#ffffffdd" : heat > 0.45 ? "#ffdd44" : heat > 0.2 ? "#ff8811" : "#ff3300";
+          s.particles.push({
+            x: nozzleX + (Math.random() - 0.5) * 10,
+            y: nozzleY + (Math.random() - 0.5) * 10,
+            vx: Math.cos(exhaustAngle + spread) * spd + s.vx * 0.2,
+            vy: Math.sin(exhaustAngle + spread) * spd + s.vy * 0.2,
+            life: 1,
+            maxLife: 14 + Math.random() * 16,
+            color,
+            size: 4 + Math.random() * 8 * intensity,
+            rotation: 0,
+            rotationSpeed: 0,
+            shape: "circle",
+          });
+        }
+      }
+
       } // end simulation (paused check)
 
       // Spring deformation (always run so draw has valid values)
-      const stiffness = 300 + (1 - c.elasticity) * 400;
-      const damping = 8 + (1 - c.elasticity) * 25;
+      const stiffness = 300 + (1 - elasticity) * 400;
+      const damping = 8 + (1 - elasticity) * 25;
       stepSpring(s.deformX, 1, stiffness, damping);
       stepSpring(s.deformY, 1, stiffness, damping);
+
+      // Celebration burst spring — settles back to 1.0
+      stepSpring(s.burstScale, 1, 200, 18);
 
       const rawX = s.deformX.value;
       const rawY = s.deformY.value;
@@ -839,8 +978,55 @@ export function DvdBounce() {
     };
   }, [drawDvdLogo]);
 
-  const set = (key: keyof Config, val: number) =>
+  const set = (key: keyof Config, val: number) => {
     setConfig((prev) => ({ ...prev, [key]: val }));
+    setActivePreset(null);
+  };
+
+  const applyPreset = (i: number) => {
+    const p = PRESETS[i];
+    const isLudicrous = p.label === "Ludicrous";
+    setActivePreset(i);
+    setShowCounter(p.showCounter);
+    setShowCornerText(p.showCornerText);
+
+    // Animate sliders from current values to target
+    cancelAnimationFrame(presetAnimRef.current);
+    const fromConfig = { ...config };
+    const startTime = performance.now();
+    const duration = 500;
+
+    const animate = () => {
+      const elapsed = performance.now() - startTime;
+      const t = Math.min(1, elapsed / duration);
+      const e = 1 - Math.pow(1 - t, 3); // ease-out cubic
+      const lerped: Config = {} as Config;
+      for (const key of Object.keys(p.config) as (keyof Config)[]) {
+        lerped[key] = fromConfig[key] + (p.config[key] - fromConfig[key]) * e;
+      }
+      setConfig(lerped);
+      if (t < 1) {
+        presetAnimRef.current = requestAnimationFrame(animate);
+      }
+    };
+    presetAnimRef.current = requestAnimationFrame(animate);
+
+    // Ludicrous easter egg
+    if (isLudicrous && activePreset !== i) {
+      stateRef.current.jetBoostTimer = 120;
+      // Speed boost — temporarily double velocity
+      const s = stateRef.current;
+      s.vx *= 2;
+      s.vy *= 2;
+      // Size burst — same 1.2x as corner hit
+      s.burstScale.value = CORNER_BURST_SCALE;
+      s.burstScale.velocity = 0;
+      setLudicrousFlare(true);
+      setTimeout(() => setLudicrousFlare(false), 800);
+    } else {
+      setLudicrousFlare(false);
+    }
+  };
 
   const panelControls = (
     <div
@@ -868,6 +1054,67 @@ export function DvdBounce() {
         </div>
       )}
 
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", userSelect: "none" }}>
+          Preset
+          {presetModified && (
+            <span style={{ color: "rgba(255,255,255,0.3)", fontStyle: "italic", marginLeft: 4 }}>edited</span>
+          )}
+        </span>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+          {PRESETS.map((p, i) => {
+            const active = i === activePreset;
+            const isLudicrous = p.label === "Ludicrous";
+            const flaring = isLudicrous && ludicrousFlare;
+            return (
+              <button
+                key={p.label}
+                onClick={() => applyPreset(i)}
+                style={{
+                  position: "relative",
+                  overflow: "hidden",
+                  padding: "5px 9px",
+                  borderRadius: 6,
+                  border: `1px solid ${active ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)"}`,
+                  background: flaring
+                    ? "linear-gradient(0deg, rgba(255,80,0,0.5), rgba(255,40,0,0.15))"
+                    : active ? "rgba(255,255,255,0.06)" : "transparent",
+                  color: flaring
+                    ? "#ffcc44"
+                    : active ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.55)",
+                  cursor: "pointer",
+                  fontSize: 10,
+                  fontFamily: "'SF Mono', 'Fira Code', monospace",
+                  fontWeight: active ? 500 : 400,
+                  transition: flaring ? "all 0.15s" : "all 0.12s",
+                  lineHeight: 1.3,
+                  boxShadow: flaring ? "0 0 16px rgba(255,80,0,0.5), inset 0 0 12px rgba(255,120,0,0.2)" : "none",
+                }}
+              >
+                {p.label}
+                {flaring && (
+                  <span style={{
+                    position: "absolute",
+                    inset: 0,
+                    background: "linear-gradient(0deg, rgba(255,120,0,0.4) 0%, transparent 60%)",
+                    pointerEvents: "none",
+                    animation: "ludicrous-burn 0.8s ease-out forwards",
+                  }} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <style>{`
+        @keyframes ludicrous-burn {
+          0% { opacity: 1; filter: brightness(2); }
+          30% { opacity: 1; filter: brightness(1.5); }
+          100% { opacity: 0; filter: brightness(1); }
+        }
+      `}</style>
+      <DevDivider />
+
       {SLIDER_DEFS.map((def) => (
         <DevSlider
           key={def.key}
@@ -883,9 +1130,8 @@ export function DvdBounce() {
 
       <DevDivider />
 
-      <DevToggle label="Counter" checked={showCounter} onChange={setShowCounter} />
-      <DevToggle label="Corner celebration" checked={showCornerText} onChange={setShowCornerText} />
-      <DevToggle label="Grow on corner" checked={growOnCorner} onChange={handleSetGrowOnCorner} />
+      <DevToggle label="Counter" checked={showCounter} onChange={(v) => { setShowCounter(v); setActivePreset(null); }} />
+      <DevToggle label="Corner celebration" checked={showCornerText} onChange={(v) => { setShowCornerText(v); setActivePreset(null); }} />
 
       <DevDivider />
 
@@ -960,7 +1206,7 @@ export function DvdBounce() {
         <div style={{ flex: 1 }}>
           <DevButton
             label="Reset"
-            onClick={() => { setConfig(DEFAULT_CONFIG); stateRef.current.growthScale = 1; stateRef.current.growthHits = 0; resetLogo(); setBgColor("#111111"); }}
+            onClick={() => { setConfig(DEFAULT_CONFIG); stateRef.current.burstScale = { value: 1, velocity: 0 }; resetLogo(); setBgColor("#111111"); }}
             variant="secondary"
           />
         </div>
