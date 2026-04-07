@@ -166,22 +166,23 @@ function Toast({ message, visible, cta }: { message: string; visible: boolean; c
       color: "#fff",
       padding: "10px 16px",
       borderRadius: 8,
-      fontSize: 13,
+      fontSize: 12.5,
       fontFamily: FONT,
       fontWeight: 400,
+      letterSpacing: 0.1,
       boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
       transition: "bottom 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
       zIndex: 300,
       whiteSpace: "nowrap",
       display: "flex",
       alignItems: "center",
-      gap: 12,
+      gap: 6,
       pointerEvents: visible ? "auto" : "none",
     }}>
-      {message}
+      <span style={{ color: "rgba(255,255,255,0.85)" }}>{message}</span>
       {cta && (
         <span style={{
-          color: "#fff", fontWeight: 500, cursor: "pointer",
+          color: "#fff", fontWeight: 400, cursor: "pointer",
           textDecoration: "underline", textUnderlineOffset: 2,
         }}>
           {cta}
