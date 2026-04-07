@@ -151,7 +151,7 @@ const TEXTURES = [
 // Palettes map n, n2, edgeFade → fragColor
 const PALETTES = [
   {
-    label: "Forest",
+    label: "Green",
     glsl: `
   vec3 dark = vec3(0.1, 0.45, 0.2) * 0.6;
   vec3 bright = vec3(0.15, 0.7, 0.3) * 0.85;
@@ -160,7 +160,7 @@ const PALETTES = [
   fragColor = vec4(color * opacity, opacity);`,
   },
   {
-    label: "Lava",
+    label: "Red",
     glsl: `
   vec3 darkRed = vec3(0.5, 0.05, 0.0);
   vec3 orange = vec3(0.9, 0.35, 0.05);
@@ -171,7 +171,7 @@ const PALETTES = [
   fragColor = vec4(color * opacity, opacity);`,
   },
   {
-    label: "Ocean",
+    label: "Blue",
     glsl: `
   vec3 deep = vec3(0.02, 0.1, 0.3);
   vec3 mid = vec3(0.05, 0.3, 0.55);
@@ -182,7 +182,7 @@ const PALETTES = [
   fragColor = vec4(color * opacity, opacity);`,
   },
   {
-    label: "Aurora",
+    label: "Teal",
     glsl: `
   vec3 c1 = vec3(0.1, 0.6, 0.55);
   vec3 c2 = vec3(0.2, 0.8, 0.4);
@@ -193,7 +193,7 @@ const PALETTES = [
   fragColor = vec4(color * opacity, opacity);`,
   },
   {
-    label: "Plasma",
+    label: "Purple",
     glsl: `
   float t = u_time * u_speed;
   float r = sin(n * 3.14159 + t * 0.5) * 0.5 + 0.5;
@@ -207,11 +207,11 @@ const PALETTES = [
 
 // Glow colors matched to each palette (used for border glow)
 const PALETTE_GLOWS = [
-  { h: 145, s: 55, l: 40 }, // Forest
-  { h: 15,  s: 75, l: 48 }, // Lava
-  { h: 200, s: 65, l: 42 }, // Ocean
-  { h: 170, s: 55, l: 42 }, // Aurora
-  { h: 280, s: 55, l: 52 }, // Plasma
+  { h: 145, s: 55, l: 40 }, // Green
+  { h: 15,  s: 75, l: 48 }, // Red
+  { h: 200, s: 65, l: 42 }, // Blue
+  { h: 170, s: 55, l: 42 }, // Teal
+  { h: 280, s: 55, l: 52 }, // Purple
 ];
 
 // Compose a fragment shader from a texture + palette
@@ -698,15 +698,36 @@ export function SlideUnlock() {
       <DevDivider />
       <DevTextInput label="Text" value={hintText} onChange={setHintText} />
       <div style={{ height: 2 }} />
-      <DevButton
-        label={copied ? "Copied!" : "Copy Shader"}
-        variant="primary"
-        onClick={() => {
-          const glsl = composeFragment(textureIdx, paletteIdx);
-          navigator.clipboard.writeText(glsl);
-          setCopied(true);
-        }}
-      />
+      <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ flex: 1 }}>
+          <DevButton
+            label="Reset"
+            variant="default"
+            onClick={() => {
+              const p = PRESETS[0];
+              setActivePreset(0);
+              setTextureIdx(p.texture);
+              setPaletteIdx(p.palette);
+              setSpeed(p.speed);
+              setScale(p.scale);
+              setIntensity(p.intensity);
+              setGlowIntensity(0.5);
+              setHintText("slide to unlock");
+            }}
+          />
+        </div>
+        <div style={{ flex: 1 }}>
+          <DevButton
+            label={copied ? "Copied!" : "Copy"}
+            variant="primary"
+            onClick={() => {
+              const glsl = composeFragment(textureIdx, paletteIdx);
+              navigator.clipboard.writeText(glsl);
+              setCopied(true);
+            }}
+          />
+        </div>
+      </div>
     </>
   );
 
@@ -904,7 +925,7 @@ export function SlideUnlock() {
             }}
             animate={{
               backgroundColor: isAtThreshold
-                ? "hsl(145, 60%, 42%)"
+                ? `hsl(${PALETTE_GLOWS[paletteIdx].h}, ${PALETTE_GLOWS[paletteIdx].s}%, ${PALETTE_GLOWS[paletteIdx].l}%)`
                 : "hsl(0, 0%, 20%)",
             }}
             transition={{ duration: 0.2 }}
