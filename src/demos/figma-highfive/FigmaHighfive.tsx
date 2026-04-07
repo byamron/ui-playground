@@ -83,12 +83,6 @@ const ChevronRight = () => (
   </svg>
 );
 
-const CheckIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={C.text} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 7.5L5.5 10L11 4" />
-  </svg>
-);
-
 const CloseIcon = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke={C.textSec} strokeWidth="1.5" strokeLinecap="round">
     <path d="M2 2L10 10M10 2L2 10" />
@@ -143,44 +137,6 @@ const CodeIcon = () => (
   </svg>
 );
 
-const FigmaLogoIcon = () => (
-  <svg width="12" height="18" viewBox="0 0 200 300">
-    <path d="M50 300c27.6 0 50-22.4 50-50v-50H50c-27.6 0-50 22.4-50 50s22.4 50 50 50z" fill="#0acf83"/>
-    <path d="M0 150c0-27.6 22.4-50 50-50h50v100H50c-27.6 0-50-22.4-50-50z" fill="#a259ff"/>
-    <path d="M0 50C0 22.4 22.4 0 50 0h50v100H50C22.4 100 0 77.6 0 50z" fill="#f24e1e"/>
-    <path d="M100 0h50c27.6 0 50 22.4 50 50s-22.4 50-50 50h-50V0z" fill="#ff7262"/>
-    <path d="M200 150c0 27.6-22.4 50-50 50s-50-22.4-50-50 22.4-50 50-50 50 22.4 50 50z" fill="#1abcfe"/>
-  </svg>
-);
-
-const CopyIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#333" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="5" y="5" width="7" height="7" rx="1.5" />
-    <path d="M9 5V3.5A1.5 1.5 0 007.5 2h-4A1.5 1.5 0 002 3.5v4A1.5 1.5 0 003.5 9H5" />
-  </svg>
-);
-
-// ═══════════════════════════════════════════════════════════════
-// High-five hand SVG (line art, white fill, dark outlines)
-// ═══════════════════════════════════════════════════════════════
-
-const HighFiveHandSvg = ({ size = 36 }: { size?: number }) => (
-  <svg width={size} height={size * 1.1} viewBox="0 0 32 36" fill="none">
-    <defs>
-      <filter id="hand-shadow" x="-4" y="-2" width="40" height="44" filterUnits="userSpaceOnUse">
-        <feDropShadow dx="0" dy="1" stdDeviation="1.5" floodOpacity="0.18" />
-      </filter>
-    </defs>
-    <g filter="url(#hand-shadow)" fill="white" stroke="#333" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="8" width="5.5" height="15" rx="2.75" />
-      <rect x="10.5" y="4" width="5.5" height="19" rx="2.75" />
-      <rect x="17" y="6" width="5.5" height="17" rx="2.75" />
-      <rect x="23" y="10" width="5" height="13" rx="2.5" />
-      <rect x="2" y="18" width="28" height="14" rx="6" />
-    </g>
-  </svg>
-);
-
 // ═══════════════════════════════════════════════════════════════
 // Shared sub-components
 // ═══════════════════════════════════════════════════════════════
@@ -203,7 +159,7 @@ function Toast({ message, visible, cta }: { message: string; visible: boolean; c
   return (
     <div style={{
       position: "fixed",
-      bottom: visible ? 72 : -80,
+      bottom: visible ? 86 : -80,
       left: "50%",
       transform: "translateX(-50%)",
       background: C.toast,
@@ -271,7 +227,7 @@ function useShakeDetection(enabled: boolean, onShake: () => void) {
           reversals++;
         }
       }
-      if (reversals >= 3) {
+      if (reversals >= 2) {
         onShakeRef.current();
         history.current = [];
         cooldown.current = true;
@@ -430,22 +386,20 @@ function OptionRow({ icon, label, disabled }: { icon: ReactNode; label: string; 
 function TopChrome() {
   return (
     <div style={{ flexShrink: 0 }}>
-      {/* Purple gradient strip */}
-      <div style={{ height: 4, background: "linear-gradient(90deg, #C4B5FD, #A78BFA, #C4B5FD)" }} />
-
       {/* Tab bar */}
       <div style={{
         height: 40, background: "#EBEBEB",
         display: "flex", alignItems: "flex-end", padding: "0 8px",
         borderBottom: `1px solid ${C.border}`,
       }}>
-        {/* FigJam icon */}
+        {/* Home icon — aligned with the + tab button */}
         <div style={{
           width: 28, height: 30, marginBottom: -1,
           display: "flex", alignItems: "center", justifyContent: "center",
         }}>
-          <svg width="14" height="14" viewBox="0 0 14 14">
-            <rect x="2" y="2" width="10" height="10" rx="2" fill={C.purple} opacity="0.8" />
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#666" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2.5 6.5L8 2L13.5 6.5V13a1 1 0 01-1 1h-9a1 1 0 01-1-1V6.5z" />
+            <path d="M6 14V9h4v5" />
           </svg>
         </div>
 
@@ -478,98 +432,48 @@ function TopChrome() {
 // Floating controls (FigJam UI3 style — pills on the canvas)
 // ═══════════════════════════════════════════════════════════════
 
-const floatingPill: React.CSSProperties = {
-  position: "absolute",
-  zIndex: 20,
-  background: C.white,
-  borderRadius: 12,
-  padding: "8px 14px",
-  display: "flex",
-  alignItems: "center",
-  boxShadow: "0 1px 8px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04)",
-  fontFamily: FONT,
-  height: 48,
-};
-
-const SmallChevron = () => (
-  <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="#999" strokeWidth="1.5" strokeLinecap="round">
-    <path d="M2 3L4 5.5L6 3" />
-  </svg>
-);
-
 function FloatingControlsLeft() {
   return (
-    <div style={{ ...floatingPill, top: 12, left: 16, gap: 10 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
-        <FigmaLogoIcon />
-        <SmallChevron />
-      </div>
-      <span style={{ fontSize: 14, fontWeight: 600, color: C.text, lineHeight: 1 }}>Dog Names</span>
-      <span style={{
-        fontSize: 11, fontWeight: 600, color: C.purple, lineHeight: 1,
-        padding: "3px 7px", borderRadius: 4,
-        background: "rgba(123, 97, 255, 0.08)",
-      }}>
-        Free
-      </span>
-      <div style={{ width: 1, height: 20, background: C.border, margin: "0 2px" }} />
-      <div style={{ cursor: "pointer", opacity: 0.5, display: "flex", alignItems: "center" }}>
-        <CopyIcon />
-      </div>
-    </div>
+    <img
+      src="/images/figjam-left-corner.png"
+      alt=""
+      draggable={false}
+      style={{
+        position: "absolute", zIndex: 20,
+        top: 12, left: 16, height: 48,
+        borderRadius: 12,
+        boxShadow: "0 1px 8px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04)",
+        userSelect: "none",
+      }}
+    />
   );
 }
 
 function FloatingControlsRight({ currentUser, onAvatarClick }: { currentUser: "ben" | "alex"; onAvatarClick: () => void }) {
   const isBen = currentUser === "ben";
   return (
-    <div style={{ ...floatingPill, top: 12, right: 16, gap: 12 }}>
-      {/* Avatar — click to switch user (hidden toggle for recording) */}
+    <div style={{ position: "absolute", zIndex: 20, top: 12, right: 16 }}>
+      <img
+        src="/images/figjam-right-corner.png"
+        alt=""
+        draggable={false}
+        style={{
+          height: 48,
+          borderRadius: 12,
+          boxShadow: "0 1px 8px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04)",
+          userSelect: "none",
+        }}
+      />
+      {/* Dynamic avatar overlaid on top of the screenshot's avatar */}
       <div
         onClick={onAvatarClick}
-        style={{ display: "flex", alignItems: "center", gap: 3, cursor: "pointer" }}
+        style={{
+          position: "absolute", top: 11, left: 12,
+          cursor: "pointer",
+        }}
       >
-        <Avatar initials={isBen ? "BY" : "AR"} bg={isBen ? C.purple : C.green} size={30} />
-        <SmallChevron />
+        <Avatar initials={isBen ? "BY" : "AR"} bg={isBen ? C.purple : C.green} size={26} />
       </div>
-
-      {/* Grid/layout icon */}
-      <div style={{ display: "flex", alignItems: "center", cursor: "pointer" }}>
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#888" strokeWidth="1.4">
-          <rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1" />
-          <rect x="10" y="2.5" width="5.5" height="5.5" rx="1" />
-          <rect x="2.5" y="10" width="5.5" height="5.5" rx="1" />
-          <rect x="10" y="10" width="5.5" height="5.5" rx="1" />
-        </svg>
-      </div>
-
-      {/* Timer widget */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 6,
-        padding: "4px 10px", borderRadius: 20, height: 32,
-        border: `1px solid ${C.border}`, fontSize: 13, color: C.textSec,
-      }}>
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#555" strokeWidth="1.3">
-          <circle cx="8" cy="9" r="5.5" />
-          <path d="M8 6.5V9l2 1.5" strokeLinecap="round" />
-          <line x1="7" y1="2" x2="9" y2="2" />
-          <line x1="8" y1="2" x2="8" y2="3.5" />
-        </svg>
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#555" strokeWidth="1.3" strokeLinejoin="round">
-          <path d="M8 2.5l1.6 3.2 3.6.5-2.6 2.5.6 3.6L8 10.5 4.8 12.3l.6-3.6L2.8 6.2l3.6-.5z" />
-        </svg>
-        <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 500, fontSize: 14 }}>03:00</span>
-      </div>
-
-      {/* Share button */}
-      <button style={{
-        background: C.purple, color: C.white,
-        border: "none", borderRadius: 12, height: 36,
-        padding: "8px 22px", fontSize: 14, fontWeight: 600,
-        cursor: "pointer", fontFamily: FONT,
-      }}>
-        Share
-      </button>
     </div>
   );
 }
@@ -626,163 +530,144 @@ function CanvasBg({ zoom, pan }: { zoom: number; pan: { x: number; y: number } }
 }
 
 // ═══════════════════════════════════════════════════════════════
+// Figma-style multiplayer cursor
+// ═══════════════════════════════════════════════════════════════
+
+const CURSOR_WAYPOINTS = [
+  { x: 35, y: 30 },
+  { x: 45, y: 35 },
+  { x: 55, y: 28 },
+  { x: 60, y: 40 },
+  { x: 40, y: 45 },
+  { x: 30, y: 38 },
+  { x: 50, y: 50 },
+  { x: 65, y: 32 },
+  { x: 38, y: 55 },
+  { x: 52, y: 42 },
+];
+
+function FigmaCursor({ visible }: { visible: boolean }) {
+  const [pos, setPos] = useState({ x: CURSOR_WAYPOINTS[0].x, y: CURSOR_WAYPOINTS[0].y });
+  const waypointIdx = useRef(0);
+  const animRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!visible) return;
+
+    let start: number | null = null;
+    const fromRef = { x: pos.x, y: pos.y };
+    let toRef = CURSOR_WAYPOINTS[(waypointIdx.current + 1) % CURSOR_WAYPOINTS.length];
+    const duration = 1800;
+    const pause = 600;
+
+    const ease = (t: number) => t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+
+    const tick = (ts: number) => {
+      if (start === null) start = ts;
+      const elapsed = ts - start;
+
+      if (elapsed < duration) {
+        const t = ease(elapsed / duration);
+        setPos({
+          x: fromRef.x + (toRef.x - fromRef.x) * t,
+          y: fromRef.y + (toRef.y - fromRef.y) * t,
+        });
+        animRef.current = requestAnimationFrame(tick);
+      } else {
+        setPos({ x: toRef.x, y: toRef.y });
+        // Pause, then move to next waypoint
+        setTimeout(() => {
+          waypointIdx.current = (waypointIdx.current + 1) % CURSOR_WAYPOINTS.length;
+          fromRef.x = toRef.x;
+          fromRef.y = toRef.y;
+          toRef = CURSOR_WAYPOINTS[(waypointIdx.current + 1) % CURSOR_WAYPOINTS.length];
+          start = null;
+          animRef.current = requestAnimationFrame(tick);
+        }, pause);
+      }
+    };
+
+    animRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: `${pos.x}%`,
+        top: `${pos.y}%`,
+        zIndex: 30,
+        pointerEvents: "none",
+      }}
+    >
+      {/* Cursor arrow — Figma SVG, colored to match Ben's profile */}
+      <svg width="22" height="24" viewBox="0 0 396 433" fill="none" style={{ display: "block", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.2))" }}>
+        <path
+          d="M39.97 31.88C38.22 23.48 47.2 16.95 54.64 21.22L351.11 191.13C358.65 195.45 357.4 206.69 349.09 209.25L205.2 253.51C202.97 254.2 201.05 255.64 199.79 257.6L127.77 368.53C122.94 375.97 111.52 373.84 109.71 365.16L39.97 31.88Z"
+          fill={C.purple}
+        />
+        <path
+          d="M346.17 199.75L202.28 244.01C197.82 245.38 193.99 248.28 191.45 252.19L119.43 363.12L49.7 29.84L346.17 199.75Z"
+          stroke="white"
+          strokeWidth="19.88"
+        />
+      </svg>
+      {/* Name label — detached, below-right of cursor */}
+      <div style={{
+        position: "absolute",
+        top: 22,
+        left: 14,
+        background: C.purple,
+        color: "#fff",
+        fontSize: 12,
+        fontWeight: 500,
+        fontFamily: FONT,
+        padding: "3px 8px",
+        borderRadius: 4,
+        whiteSpace: "nowrap",
+        lineHeight: 1.3,
+        boxShadow: "0 2px 6px rgba(0,0,0,0.18)",
+      }}>
+        Ben
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Bottom toolbar (FigJam tool icons from screenshot)
 // ═══════════════════════════════════════════════════════════════
 
 function BottomBar({ onHandClick }: { onHandClick: () => void }) {
-  const S = 20;
-  const sw = "1.5";
-  const sc = "#333";
-
-  const cell: React.CSSProperties = {
-    width: 32, height: 32, borderRadius: 8,
-    display: "flex", alignItems: "center", justifyContent: "center",
-    flexShrink: 0,
-  };
-
-  const divider = (
-    <div style={{ width: 1, height: 20, background: C.border, margin: "0 4px", flexShrink: 0 }} />
-  );
-
   return (
     <div style={{
       position: "absolute", bottom: 14, left: "50%",
       transform: "translateX(-50%)",
-      background: C.white, borderRadius: 14,
-      padding: "6px 6px", display: "flex", alignItems: "center", gap: 2,
-      boxShadow: "0 2px 12px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04)",
       zIndex: 10,
     }}>
-      {/* ── Navigation ── */}
-      {/* Cursor (active) */}
-      <div style={{ ...cell, background: C.purple }}>
-        <svg width="14" height="14" viewBox="0 0 18 18" fill="none">
-          <path d="M0.573545 1.87033C0.24895 1.04553 1.07874 0.237002 1.89483 0.583223L16.1175 6.6174C16.956 6.97311 16.9214 8.17321 16.0638 8.47971L10.4759 10.4758L8.04034 16.1574C7.6884 16.9786 6.5182 16.9614 6.19073 16.1301L0.573545 1.87033Z" stroke="white" strokeWidth="1.5" />
-        </svg>
-      </div>
-      {/* Hand — open palm (SVG recreation of macOS openhand cursor) */}
-      <div style={{ ...cell, cursor: "pointer" }} onClick={onHandClick}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-          {/* Index */}
-          <path d="M8.5 11V4.5C8.5 3.67 9.17 3 10 3s1.5.67 1.5 1.5V11" />
-          {/* Middle */}
-          <path d="M11.5 11V3.5C11.5 2.67 12.17 2 13 2s1.5.67 1.5 1.5V11" />
-          {/* Ring */}
-          <path d="M14.5 11V4.5C14.5 3.67 15.17 3 16 3s1.5.67 1.5 1.5V11" />
-          {/* Pinky + palm right + base */}
-          <path d="M17.5 11V7.5C17.5 6.67 18.17 6 19 6s1.5.67 1.5 1.5V14c0 4-3 7-7 7h-2c-3.3 0-6-2.7-6-6v-3c0-.83.67-1.5 1.5-1.5S8.5 11.17 8.5 12" />
-        </svg>
-      </div>
-
-      {divider}
-
-      {/* ── Objects ── */}
-      {/* Marker — tip pointing UP */}
-      <div style={cell}>
-        <svg width={S} height={S} viewBox="0 0 20 20" fill="none" stroke={sc} strokeWidth="1.3" strokeLinejoin="round">
-          <path d="M7 17V12L10 2L13 12V17H7Z" stroke={sc} fill="none" />
-          <path d="M7 12H13" />
-          <path d="M8.5 5L10 2L11.5 5Z" fill="#333" stroke="none" />
-        </svg>
-      </div>
-      {/* Shapes (colored) */}
-      <div style={cell}>
-        <svg width={S} height={S} viewBox="0 0 20 20" fill="none" strokeWidth="1.3" strokeLinejoin="round">
-          <polygon points="8,3 15,13 1,13" fill="#C4B5FD" stroke="#9F8FD8" />
-          <rect x="8" y="9" width="9" height="8" rx="1.5" fill="#BFDBFE" stroke="#7BAFD4" />
-        </svg>
-      </div>
-      {/* Sticky (yellow) */}
-      <div style={cell}>
-        <svg width={S} height={S} viewBox="0 0 20 20" fill="none" strokeWidth="1.3">
-          <rect x="3" y="3" width="14" height="14" rx="2" fill="#FDE68A" stroke="#D4A843" />
-          <path d="M13 17H17V13" fill="#ECD06B" stroke="#D4A843" strokeLinejoin="round" />
-        </svg>
-      </div>
-      {/* Square */}
-      <div style={cell}>
-        <svg width={S} height={S} viewBox="0 0 20 20" fill="none" stroke={sc} strokeWidth={sw}>
-          <rect x="4" y="4" width="12" height="12" rx="1" />
-        </svg>
-      </div>
-      {/* Connector */}
-      <div style={cell}>
-        <svg width={S} height={S} viewBox="0 0 20 20" fill="none" stroke={sc} strokeWidth={sw} strokeLinecap="round">
-          <path d="M4 16Q4 6 14 4" />
-          <path d="M11 2L15 4L11 6" />
-        </svg>
-      </div>
-      {/* Circle/ellipse */}
-      <div style={cell}>
-        <svg width={S} height={S} viewBox="0 0 20 20" fill="none" stroke={sc} strokeWidth={sw}>
-          <circle cx="10" cy="10" r="7" />
-        </svg>
-      </div>
-
-      {divider}
-
-      {/* ── Tools + Inserts ── */}
-      {/* Text */}
-      <div style={cell}>
-        <svg width={S} height={S} viewBox="0 0 20 20" fill="none" stroke={sc} strokeWidth={sw} strokeLinecap="round">
-          <line x1="4" y1="5" x2="16" y2="5" />
-          <line x1="10" y1="5" x2="10" y2="16" />
-          <line x1="7" y1="16" x2="13" y2="16" />
-        </svg>
-      </div>
-      {/* Section/frame */}
-      <div style={cell}>
-        <svg width={S} height={S} viewBox="0 0 20 20" fill="none" stroke={sc} strokeWidth={sw} strokeLinejoin="round">
-          <rect x="3" y="4" width="10" height="10" rx="1" />
-          <rect x="7" y="7" width="10" height="10" rx="1" fill={C.canvas} />
-        </svg>
-      </div>
-      {/* Grid/table */}
-      <div style={cell}>
-        <svg width={S} height={S} viewBox="0 0 20 20" fill="none" stroke={sc} strokeWidth={sw}>
-          <rect x="3" y="3" width="14" height="14" rx="1.5" />
-          <line x1="10" y1="3" x2="10" y2="17" />
-          <line x1="3" y1="10" x2="17" y2="10" />
-        </svg>
-      </div>
-      {/* Person/stamp */}
-      <div style={cell}>
-        <svg width={S} height={S} viewBox="0 0 20 20" fill="none" stroke={sc} strokeWidth={sw}>
-          <circle cx="10" cy="7" r="3" />
-          <path d="M4 17c0-3.31 2.69-6 6-6s6 2.69 6 6" />
-        </svg>
-      </div>
-      {/* Comment bubble */}
-      <div style={cell}>
-        <svg width={S} height={S} viewBox="0 0 20 20" fill="none" stroke={sc} strokeWidth={sw} strokeLinejoin="round">
-          <path d="M4 4h12a1 1 0 011 1v8a1 1 0 01-1 1H8L4 17V5a1 1 0 011-1" />
-        </svg>
-      </div>
-      {/* Sticker/image */}
-      <div style={cell}>
-        <svg width={S} height={S} viewBox="0 0 20 20" fill="none" stroke={sc} strokeWidth={sw} strokeLinejoin="round">
-          <rect x="3" y="3" width="14" height="14" rx="2" />
-          <path d="M3 13L7 9L10 12L13 8L17 13" />
-          <circle cx="7" cy="7" r="1.5" fill={sc} stroke="none" />
-        </svg>
-      </div>
-      {/* Widgets/components */}
-      <div style={cell}>
-        <svg width={S} height={S} viewBox="0 0 20 20" fill="none" stroke={sc} strokeWidth={sw}>
-          <circle cx="6" cy="6" r="2" /><circle cx="14" cy="6" r="2" />
-          <circle cx="6" cy="14" r="2" /><circle cx="14" cy="14" r="2" />
-          <line x1="8" y1="6" x2="12" y2="6" /><line x1="8" y1="14" x2="12" y2="14" />
-          <line x1="6" y1="8" x2="6" y2="12" /><line x1="14" y1="8" x2="14" y2="12" />
-        </svg>
-      </div>
-
-      {/* Plus button */}
-      <div style={{
-        ...cell, color: C.textMuted,
-        fontSize: 20, fontWeight: 300, cursor: "pointer",
-      }}>
-        +
-      </div>
+      <img
+        src="/images/figjam-toolbar.png"
+        alt=""
+        draggable={false}
+        style={{
+          height: 48,
+          borderRadius: 14,
+          boxShadow: "0 2px 12px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04)",
+          userSelect: "none",
+        }}
+      />
+      {/* Invisible hit target over hand tool (2nd icon from left) */}
+      <div
+        onClick={onHandClick}
+        style={{
+          position: "absolute", top: 0, left: 42,
+          width: 36, height: "100%",
+          cursor: "pointer",
+        }}
+      />
     </div>
   );
 }
@@ -882,6 +767,7 @@ export function FigmaHighfive() {
       width: "100%", height: "100%", position: "relative", overflow: "hidden",
       fontFamily: FONT,
       background: C.canvas,
+      cursor: "url(/images/figma-cursor-black.svg) 3 1, auto",
     }}>
       {/* ── Background: FigJam UI ── */}
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -896,6 +782,7 @@ export function FigmaHighfive() {
           <CanvasBg zoom={zoom} pan={pan} />
           <FloatingControlsLeft />
           <FloatingControlsRight currentUser={currentUser} onAvatarClick={toggleUser} />
+          <FigmaCursor visible={!modalOpen} />
         </div>
       </div>
 
@@ -964,7 +851,7 @@ export function FigmaHighfive() {
               fontSize: 11, color: C.textSec, lineHeight: 1.4, fontFamily: FONT,
               whiteSpace: "nowrap",
             }}>
-              <div style={{ flexShrink: 0 }}><InfoIcon /></div>
+              <div style={{ flexShrink: 0, display: "flex", alignItems: "center" }}><InfoIcon /></div>
               <span>
                 To invite people to edit, move this draft into your projects.{" "}
                 <span style={{ color: C.blue, fontWeight: 500, cursor: "pointer" }}>Move file</span>
@@ -1022,7 +909,7 @@ export function FigmaHighfive() {
               />
               <AccessRow
                 icon={<Avatar initials="BY" bg={C.purple} />}
-                name="Benjamin Yamron"
+                name="Ben"
                 nameExtra=" (you)"
                 permission="owner"
               />
