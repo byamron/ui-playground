@@ -61,7 +61,6 @@ export function TaskRanking() {
   const [unranked, setUnranked] = useState<Task[]>(() => [...SAMPLE_TASKS]);
   const [comparison, setComparison] = useState<{ a: Task; b: Task; step: number; total: number } | null>(null);
   const [done, setDone] = useState(false);
-  const generatorRef = useRef<AsyncGenerator<{ a: Task; b: Task; step: number; total: number }, number> | null>(null);
   const resolveRef = useRef<((value: boolean) => void) | null>(null);
   const [pairKey, setPairKey] = useState(0);
 
@@ -120,7 +119,6 @@ export function TaskRanking() {
     setUnranked([...SAMPLE_TASKS]);
     setComparison(null);
     setDone(false);
-    generatorRef.current = null;
     resolveRef.current = null;
   };
 
@@ -135,18 +133,20 @@ export function TaskRanking() {
           letter-spacing: 0.02em;
         }
         .rank-card {
-          padding: 20px 24px;
+          padding: 22px 26px;
           border-radius: 14px;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.10);
+          background: rgba(255,255,255,0.05);
           cursor: pointer;
           user-select: none;
-          width: 280px;
-          transition: border-color 0.15s, background 0.15s;
+          width: clamp(260px, 28vw, 340px);
+          transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.04);
         }
         .rank-card:hover {
-          border-color: rgba(255,255,255,0.18);
-          background: rgba(255,255,255,0.06);
+          border-color: rgba(255,255,255,0.20);
+          background: rgba(255,255,255,0.08);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.06);
         }
         .rank-card-title {
           font-size: 16px;
@@ -188,7 +188,7 @@ export function TaskRanking() {
           display: flex;
           flex-direction: column;
           gap: 4px;
-          width: 280px;
+          width: clamp(260px, 28vw, 340px);
         }
         .rank-result-item {
           display: flex;
@@ -230,18 +230,29 @@ export function TaskRanking() {
         {comparison && !done && (
           <motion.div
             key={`compare-${pairKey}`}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
             style={{ display: "flex", flexDirection: "column", alignItems: "center" }}
           >
             <div className="rank-heading">Which is more important?</div>
 
-            <div
+            {/* Card A — enters from left with spring overshoot */}
+            <motion.div
               className="rank-card"
               onClick={() => handleChoice(true)}
-              onKeyDown={(e) => e.key === "1" && handleChoice(true)}
+              initial={{ opacity: 0, x: -60, scale: 0.92, rotate: -3 }}
+              animate={{ opacity: 1, x: 0, scale: 1, rotate: 0 }}
+              exit={{ opacity: 0, x: 80, scale: 0.85, rotate: 5 }}
+              transition={{
+                type: "spring",
+                stiffness: 350,
+                damping: 25,
+                mass: 0.8,
+              }}
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.97 }}
             >
               <div style={{ display: "flex", alignItems: "center" }}>
                 <div className="rank-card-title">{comparison.a.title}</div>
@@ -250,14 +261,36 @@ export function TaskRanking() {
               {comparison.a.description && (
                 <div className="rank-card-desc">{comparison.a.description}</div>
               )}
-            </div>
+            </motion.div>
 
-            <div className="rank-or">or</div>
+            {/* "or" divider with breathing pulse */}
+            <motion.div
+              className="rank-or"
+              initial={{ opacity: 0, scaleX: 0 }}
+              animate={{ opacity: 1, scaleX: 1 }}
+              transition={{ delay: 0.1, duration: 0.2 }}
+              style={{ display: "flex", alignItems: "center", gap: 12 }}
+            >
+              <div style={{ width: 40, height: 1, background: "rgba(255,255,255,0.08)" }} />
+              <span>or</span>
+              <div style={{ width: 40, height: 1, background: "rgba(255,255,255,0.08)" }} />
+            </motion.div>
 
-            <div
+            {/* Card B — enters from right with spring overshoot */}
+            <motion.div
               className="rank-card"
               onClick={() => handleChoice(false)}
-              onKeyDown={(e) => e.key === "2" && handleChoice(false)}
+              initial={{ opacity: 0, x: 60, scale: 0.92, rotate: 3 }}
+              animate={{ opacity: 1, x: 0, scale: 1, rotate: 0 }}
+              exit={{ opacity: 0, x: -80, scale: 0.85, rotate: -5 }}
+              transition={{
+                type: "spring",
+                stiffness: 350,
+                damping: 25,
+                mass: 0.8,
+              }}
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.97 }}
             >
               <div style={{ display: "flex", alignItems: "center" }}>
                 <div className="rank-card-title">{comparison.b.title}</div>
@@ -266,20 +299,51 @@ export function TaskRanking() {
               {comparison.b.description && (
                 <div className="rank-card-desc">{comparison.b.description}</div>
               )}
-            </div>
+            </motion.div>
 
-            <div className="rank-progress">
-              Comparison {comparison.step} of ~{comparison.total}
-              {unranked.length > 0 && ` · ${unranked.length + 1} tasks remaining`}
-            </div>
+            {/* Progress — converging beam */}
+            <motion.div
+              className="rank-progress"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {Array.from({ length: comparison.total }).map((_, i) => (
+                  <motion.div
+                    key={i}
+                    animate={{
+                      background: i < comparison.step
+                        ? "hsla(350, 50%, 65%, 0.8)"
+                        : "rgba(255,255,255,0.08)",
+                      scale: i === comparison.step - 1 ? [1, 1.3, 1] : 1,
+                    }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 400,
+                      damping: 15,
+                    }}
+                    style={{
+                      width: 20,
+                      height: 4,
+                      borderRadius: 2,
+                    }}
+                  />
+                ))}
+              </div>
+              <span>
+                {unranked.length + 1} task{unranked.length > 0 ? "s" : ""} remaining
+              </span>
+            </motion.div>
           </motion.div>
         )}
 
         {done && (
           <motion.div
             key="results"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
             style={{ display: "flex", flexDirection: "column", alignItems: "center" }}
           >
@@ -289,18 +353,29 @@ export function TaskRanking() {
                 <motion.div
                   key={task.id}
                   className="rank-result-item"
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.06 }}
+                  initial={{ opacity: 0, y: 30, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 300,
+                    damping: 22,
+                    delay: Math.pow(i, 1.4) * 0.05,
+                  }}
                 >
                   <span className="rank-result-num">{i + 1}</span>
                   <span className="rank-result-title">{task.title}</span>
                 </motion.div>
               ))}
             </div>
-            <button className="rank-reset" onClick={reset}>
+            <motion.button
+              className="rank-reset"
+              onClick={reset}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: Math.pow(Math.max(0, ranked.length - 1), 1.4) * 0.05 + 0.3 }}
+            >
               Start over
-            </button>
+            </motion.button>
           </motion.div>
         )}
       </AnimatePresence>

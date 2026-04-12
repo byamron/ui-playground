@@ -39,6 +39,16 @@ function computeBg(accent: AccentColor, intensity: number): string {
   return `hsl(${h}, ${newS.toFixed(1)}%, ${newL}%)`;
 }
 
+function computeBgLight(accent: AccentColor, intensity: number): string {
+  const [h] = BG_BASE[accent];
+  const level = INTENSITY_LEVELS[intensity];
+  const baseSat = 20;
+  const baseL = 96;
+  const newS = Math.min(100, baseSat * level.satMult);
+  const newL = baseL - intensity * 2;
+  return `hsl(${h}, ${newS.toFixed(1)}%, ${newL}%)`;
+}
+
 const STRIP_HEIGHT = 72;
 const THUMB_SIZE = 11;
 const THUMB_TRAVEL = STRIP_HEIGHT - THUMB_SIZE;
@@ -172,7 +182,8 @@ export function ThemeSidebar() {
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeSwatch = ACCENTS.find((a) => a.color === accent)!;
-  const pageBg = computeBg(accent, intensity);
+  const isLight = mode === "light";
+  const pageBg = isLight ? computeBgLight(accent, intensity) : computeBg(accent, intensity);
 
   // Setup glass pills when expanded
   useEffect(() => {
@@ -235,7 +246,109 @@ export function ThemeSidebar() {
         }
       `}</style>
 
-      <p className="sidebar-hint">Hover the right edge</p>
+      {/* Theme preview area — mock content that responds to theme changes */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+          maxWidth: 340,
+          transition: "all 500ms ease",
+        }}
+      >
+        {/* Mock notification card */}
+        <div
+          style={{
+            padding: "24px",
+            borderRadius: 16,
+            background: isLight
+              ? `hsla(${activeSwatch.hue}, ${20 + intensity * 10}%, ${96 - intensity * 4}%, 1)`
+              : `hsla(${activeSwatch.hue}, ${12 + intensity * 8}%, ${16 + intensity * 3}%, ${0.5 + intensity * 0.15})`,
+            border: `1px solid ${isLight
+              ? `hsla(${activeSwatch.hue}, 20%, 50%, ${0.08 + intensity * 0.06})`
+              : `hsla(${activeSwatch.hue}, 30%, 50%, ${0.06 + intensity * 0.04})`}`,
+            transition: "all 500ms ease",
+          }}
+        >
+          {/* Header with icon and status */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                background: `linear-gradient(135deg, ${activeSwatch.swatch}, hsla(${activeSwatch.hue}, 40%, ${isLight ? 55 : 40}%, 0.8))`,
+                opacity: TRIGGER_OPACITY[intensity],
+                transition: "all 500ms ease",
+                flexShrink: 0,
+              }}
+            />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: isLight ? text.light.primary : text.dark.primary, transition: "color 500ms" }}>
+                New message
+              </div>
+              <div style={{ fontSize: 12, color: isLight ? text.light.tertiary : text.dark.tertiary, transition: "color 500ms" }}>
+                2 min ago
+              </div>
+            </div>
+            {/* Status dot */}
+            <div
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                background: activeSwatch.swatch,
+                opacity: TRIGGER_OPACITY[intensity],
+                boxShadow: intensity > 1 ? `0 0 ${4 + intensity * 3}px ${activeSwatch.swatch}` : "none",
+                transition: "all 500ms ease",
+              }}
+            />
+          </div>
+
+          {/* Message preview lines */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ height: 8, borderRadius: 4, background: isLight ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.06)", width: "90%", transition: "background 500ms" }} />
+            <div style={{ height: 8, borderRadius: 4, background: isLight ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.06)", width: "65%", transition: "background 500ms" }} />
+          </div>
+
+          {/* Action button */}
+          <div
+            style={{
+              marginTop: 16,
+              padding: "8px 16px",
+              borderRadius: 8,
+              background: `hsla(${activeSwatch.hue}, ${30 + intensity * 10}%, ${isLight ? 50 : 60}%, ${0.1 + intensity * 0.08})`,
+              color: activeSwatch.swatch,
+              fontSize: 13,
+              fontWeight: 600,
+              display: "inline-block",
+              transition: "all 500ms ease",
+              opacity: TRIGGER_OPACITY[intensity],
+            }}
+          >
+            Reply
+          </div>
+        </div>
+
+        {/* Accent color bar */}
+        <div style={{ display: "flex", gap: 3 }}>
+          {[0.2, 0.4, 0.6, 0.8, 1.0].map((opacity, i) => (
+            <div
+              key={i}
+              style={{
+                flex: 1,
+                height: 3,
+                borderRadius: 1.5,
+                background: activeSwatch.swatch,
+                opacity: opacity * TRIGGER_OPACITY[intensity],
+                transition: "all 500ms ease",
+              }}
+            />
+          ))}
+        </div>
+
+        <p className="sidebar-hint" style={{ marginTop: 8, color: isLight ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.25)" }}>Hover the right edge</p>
+      </div>
 
       {/* Sidebar trigger zone */}
       <div
@@ -330,7 +443,7 @@ export function ThemeSidebar() {
                     style={{
                       width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center",
                       border: "none", background: "none", cursor: "pointer", padding: 0, borderRadius: 8,
-                      opacity: mode === m ? 1 : 0.4, color: text.dark.primary,
+                      opacity: mode === m ? 1 : 0.4, color: isLight ? text.light.primary : text.dark.primary,
                       transition: "opacity 200ms",
                     }}
                     title={label}

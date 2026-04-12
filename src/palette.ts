@@ -126,4 +126,9 @@ export const demoPalettes = {
   "dvd-bounce": { hue: HUES.ember, mode: "dark" as const, intensity: 1 as const },
   "slide-unlock": { hue: HUES.sky, mode: "dark" as const, intensity: 1 as const },
   "figma-highfive": { hue: HUES.violet, mode: "light" as const, intensity: 0 as const },
+  "airpods-nc": { hue: HUES.sky, mode: "light" as const, intensity: 0 as const },
+  "spotify-wrapped-ads": { hue: HUES.sage, mode: "dark" as const, intensity: 2 as const },
+  "strava-flights": { hue: HUES.ember, mode: "light" as const, intensity: 0 as const },
+  "spotify-dj": { hue: HUES.sage, mode: "dark" as const, intensity: 1 as const },
+  "companion-zoo": { hue: HUES.gold, mode: "dark" as const, intensity: 1 as const },
 } as const;

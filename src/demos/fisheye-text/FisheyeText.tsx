@@ -1,21 +1,40 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { bg, demoPalettes } from "../../palette";
+import { bg, demoPalettes, text as textColors } from "../../palette";
 
-const FONT_SIZE = 56;
+/**
+ * Fisheye Text — "Words that feel your presence."
+ * Per-character spring physics with variable font width interpolation.
+ * Characters widen toward the cursor and compress away, using the font's
+ * native `wdth` axis for optically correct distortion.
+ *
+ * Uses Recursive Variable font (wdth axis: 75–125)
+ */
+
+const FONT_SIZE = 52;
 const BG = bg(demoPalettes["fisheye-text"]);
-const PLACEHOLDER = "Start typing...";
-const SPRING_STIFFNESS = 300;
-const SPRING_DAMPING = 30;
-const MAX_SCALE = 2;
-const PUSH_RANGE = 4; // how many neighbors get pushed
+const PLACEHOLDER = "hover over me";
+const INITIAL_TEXT = "proximity";
+const SPRING_STIFFNESS = 320;
+const SPRING_DAMPING = 34;
+const MAX_WIDTH = 125; // max variable font width
+const MIN_WIDTH = 75; // min variable font width
+const REST_WIDTH = 100; // normal width
+const MAX_LIFT = -6; // pixels to lift toward cursor
+const PUSH_RANGE = 4;
+
+// Recursive Variable font is loaded from index.html
 
 export function FisheyeText() {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(INITIAL_TEXT);
   const [cursorPos, setCursorPos] = useState(0);
   const [hoveredChar, setHoveredChar] = useState<number | null>(null);
   const hiddenRef = useRef<HTMLTextAreaElement>(null);
   const charRefs = useRef<Map<number, HTMLSpanElement>>(new Map());
-  const springsRef = useRef<Map<number, { scaleX: number; x: number; targetScaleX: number; targetX: number; velScaleX: number; velX: number }>>(new Map());
+  const springsRef = useRef<Map<number, {
+    wdth: number; x: number; y: number;
+    targetWdth: number; targetX: number; targetY: number;
+    velWdth: number; velX: number; velY: number;
+  }>>(new Map());
   const rafRef = useRef<number>(0);
 
   const focusInput = useCallback(() => {
@@ -30,35 +49,31 @@ export function FisheyeText() {
   useEffect(() => {
     const step = () => {
       const dt = 1 / 60;
-      let needsUpdate = false;
 
       springsRef.current.forEach((spring, idx) => {
-        // scaleX spring
-        const forceScaleX = -SPRING_STIFFNESS * (spring.scaleX - spring.targetScaleX) - SPRING_DAMPING * spring.velScaleX;
-        spring.velScaleX += forceScaleX * dt;
-        spring.scaleX += spring.velScaleX * dt;
+        // wdth spring (variable font width axis)
+        const forceW = -SPRING_STIFFNESS * (spring.wdth - spring.targetWdth) - SPRING_DAMPING * spring.velWdth;
+        spring.velWdth += forceW * dt;
+        spring.wdth += spring.velWdth * dt;
 
-        // x spring
+        // x spring (horizontal push)
         const forceX = -SPRING_STIFFNESS * (spring.x - spring.targetX) - SPRING_DAMPING * spring.velX;
         spring.velX += forceX * dt;
         spring.x += spring.velX * dt;
 
-        if (Math.abs(spring.scaleX - spring.targetScaleX) > 0.001 || Math.abs(spring.velScaleX) > 0.01 ||
-            Math.abs(spring.x - spring.targetX) > 0.01 || Math.abs(spring.velX) > 0.01) {
-          needsUpdate = true;
-        }
+        // y spring (vertical lift toward cursor)
+        const forceY = -SPRING_STIFFNESS * (spring.y - spring.targetY) - SPRING_DAMPING * spring.velY;
+        spring.velY += forceY * dt;
+        spring.y += spring.velY * dt;
 
         const el = charRefs.current.get(idx);
         if (el) {
-          el.style.transform = `scaleX(${spring.scaleX}) translateX(${spring.x}px)`;
+          el.style.fontVariationSettings = `'wdth' ${spring.wdth}`;
+          el.style.transform = `translate(${spring.x}px, ${spring.y}px)`;
         }
       });
 
-      if (needsUpdate) {
-        rafRef.current = requestAnimationFrame(step);
-      } else {
-        rafRef.current = requestAnimationFrame(step); // keep running for responsiveness
-      }
+      rafRef.current = requestAnimationFrame(step);
     };
 
     rafRef.current = requestAnimationFrame(step);
@@ -70,7 +85,11 @@ export function FisheyeText() {
     // Ensure springs exist for all characters
     for (let i = 0; i < text.length; i++) {
       if (!springsRef.current.has(i)) {
-        springsRef.current.set(i, { scaleX: 1, x: 0, targetScaleX: 1, targetX: 0, velScaleX: 0, velX: 0 });
+        springsRef.current.set(i, {
+          wdth: REST_WIDTH, x: 0, y: 0,
+          targetWdth: REST_WIDTH, targetX: 0, targetY: 0,
+          velWdth: 0, velX: 0, velY: 0,
+        });
       }
     }
     // Clean up extras
@@ -78,26 +97,32 @@ export function FisheyeText() {
       if (key >= text.length) springsRef.current.delete(key);
     });
 
-    // Set targets
+    // Set targets based on proximity to hovered character
     for (let i = 0; i < text.length; i++) {
       const spring = springsRef.current.get(i)!;
       if (hoveredChar === null) {
-        spring.targetScaleX = 1;
+        spring.targetWdth = REST_WIDTH;
         spring.targetX = 0;
+        spring.targetY = 0;
       } else {
         const distance = Math.abs(i - hoveredChar);
         if (i === hoveredChar) {
-          spring.targetScaleX = MAX_SCALE;
+          spring.targetWdth = MAX_WIDTH;
           spring.targetX = 0;
+          spring.targetY = MAX_LIFT;
         } else if (distance <= PUSH_RANGE) {
           const direction = Math.sign(i - hoveredChar);
           const falloff = 1 - distance / (PUSH_RANGE + 1);
-          const pushPx = FONT_SIZE * 0.4 * falloff * direction;
-          spring.targetScaleX = 1 - 0.15 * falloff;
+          const pushPx = FONT_SIZE * 0.35 * falloff * direction;
+          // Compress neighbors using variable font width
+          spring.targetWdth = REST_WIDTH - (REST_WIDTH - MIN_WIDTH) * 0.4 * falloff;
           spring.targetX = pushPx;
+          // Slight dome lift for near neighbors
+          spring.targetY = MAX_LIFT * 0.4 * falloff;
         } else {
-          spring.targetScaleX = 1;
+          spring.targetWdth = REST_WIDTH;
           spring.targetX = 0;
+          spring.targetY = 0;
         }
       }
     }
@@ -130,7 +155,7 @@ export function FisheyeText() {
   return (
     <div
       className="demo-page"
-      style={{ background: BG, cursor: "text" }}
+      style={{ background: BG, cursor: "text", flexDirection: "column", gap: 0 }}
       onClick={focusInput}
     >
       <style>{`
@@ -139,6 +164,30 @@ export function FisheyeText() {
           51%, 100% { opacity: 0; }
         }
       `}</style>
+
+      {/* Concept frame */}
+      <div
+        style={{
+          marginBottom: 48,
+          textAlign: "center",
+          userSelect: "none",
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 400,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: textColors.dark.tertiary,
+            fontFamily: "'Recursive', monospace",
+            marginBottom: 6,
+          }}
+        >
+          Proximity Typography
+        </div>
+      </div>
 
       <textarea
         ref={hiddenRef}
@@ -163,18 +212,19 @@ export function FisheyeText() {
           display: "flex",
           flexWrap: "wrap",
           alignItems: "baseline",
-          fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', monospace",
-          fontSize: FONT_SIZE,
+          fontFamily: "'Recursive', 'SF Mono', 'Fira Code', monospace",
+          fontSize: "clamp(40px, 5vw, 72px)",
           fontWeight: 400,
-          color: "#fff",
-          lineHeight: 1.5,
-          maxWidth: 800,
-          minHeight: "1.5em",
+          fontVariationSettings: `'wdth' ${REST_WIDTH}`,
+          color: "rgba(255,255,255,0.92)",
+          lineHeight: 1.6,
+          maxWidth: "min(740px, 80vw)",
+          minHeight: "1.6em",
           position: "relative",
         }}
       >
         {text.length === 0 && (
-          <span style={{ color: "rgba(255,255,255,0.15)", position: "relative", display: "inline-flex" }}>
+          <span style={{ color: "rgba(255,255,255,0.12)", position: "relative", display: "inline-flex" }}>
             <Caret />
             {PLACEHOLDER}
           </span>
@@ -201,10 +251,10 @@ export function FisheyeText() {
                 }}
                 style={{
                   display: "inline-block",
-                  transformOrigin: "center",
+                  transformOrigin: "center bottom",
                   cursor: "text",
                   width: isSpace ? "0.6ch" : undefined,
-                  willChange: "transform",
+                  willChange: "transform, font-variation-settings",
                 }}
               >
                 {isSpace ? "\u00A0" : char}
@@ -218,6 +268,21 @@ export function FisheyeText() {
             <Caret />
           </span>
         )}
+      </div>
+
+      {/* Subtle hint */}
+      <div
+        style={{
+          marginTop: 40,
+          fontSize: 12,
+          color: textColors.dark.muted,
+          userSelect: "none",
+          pointerEvents: "none",
+          opacity: text.length === 0 ? 0.6 : 0.3,
+          transition: "opacity 0.3s",
+        }}
+      >
+        type, then hover
       </div>
     </div>
   );
