@@ -2,16 +2,25 @@ import { useEffect, useRef, useState } from "react";
 import { bg, demoPalettes, text } from "../../palette";
 
 /**
- * Cursor Circle→Arrow — ported from portfolio's CustomCursor.tsx (invert mode).
- * An 80px white circle with mix-blend-mode: difference follows the cursor.
- * On card hover, the circle collapses to reveal an arrow underneath.
- * Between-card debounce prevents flicker.
+ * Cursor Morph — spring-physics driven custom cursor.
+ * A circle follows the cursor with inertia, deforms based on velocity
+ * (stretches in movement direction, squashes perpendicular), and morphs
+ * into an arrow on card hover via spring-driven scale.
  */
 
 const BG = bg(demoPalettes["cursor-morph"]);
 const CIRCLE_SIZE = 80;
 const ARROW_FONT_SIZE = 36;
-const DEBOUNCE_MS = 200;
+const DEBOUNCE_MS = 60;
+
+// Spring params
+const POS_STIFFNESS = 180;
+const POS_DAMPING = 18;
+const MORPH_STIFFNESS = 400;
+const MORPH_DAMPING = 28;
+const MAX_STRETCH = 1.35;
+const MAX_SQUASH = 0.75;
+const VELOCITY_SCALE = 0.0008;
 
 const CARDS = [
   { title: "Craft Portfolio", subtitle: "Design systems and interaction" },
@@ -22,10 +31,11 @@ const CARDS = [
 
 export function CursorMorph() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const circleRef = useRef<HTMLDivElement>(null);
   const arrowRef = useRef<HTMLDivElement>(null);
-  const wrapRef = useRef<HTMLDivElement>(null);
   const [onCard, setOnCard] = useState(false);
+  const morphTargetRef = useRef(1); // 1 = circle, 0 = arrow
   const morphTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -34,32 +44,114 @@ export function CursorMorph() {
     const arrow = arrowRef.current;
     if (!wrap || !circle || !arrow) return;
 
+    // Spring state
+    let posX = 0, posY = 0;
+    let velX = 0, velY = 0;
+    let targetX = 0, targetY = 0;
+    let morphScale = 1; // 1 = circle visible, 0 = collapsed
+    let morphVel = 0;
     let initialized = false;
+    let lastTime = 0;
+    let lastAngle = 0;
+    const SPEED_THRESHOLD = 20;
 
-    // Inject global cursor:none
+    // Arrow entrance spring
+    const ARROW_STIFFNESS = 300;
+    const ARROW_DAMPING = 15;
+    let arrowScale = 0;
+    let arrowVel = 0;
+    let arrowTarget = 0;
+
+    // Inject cursor:none
     const style = document.createElement("style");
     style.textContent = "* { cursor: none !important; }";
     document.head.appendChild(style);
 
     const handleMove = (e: MouseEvent) => {
-      const x = e.clientX - CIRCLE_SIZE / 2;
-      const y = e.clientY - CIRCLE_SIZE / 2;
-      wrap.style.transform = `translate(${x}px, ${y}px)`;
+      targetX = e.clientX - CIRCLE_SIZE / 2;
+      targetY = e.clientY - CIRCLE_SIZE / 2;
       if (!initialized) {
         initialized = true;
+        posX = targetX;
+        posY = targetY;
         wrap.style.opacity = "1";
       }
     };
 
+    let rafId: number;
+    const loop = (now: number) => {
+      // Real dt for consistent feel across refresh rates
+      const dt = lastTime ? Math.min((now - lastTime) / 1000, 0.033) : 0.016;
+      lastTime = now;
+
+      if (initialized) {
+        // Position springs
+        const forceX = -POS_STIFFNESS * (posX - targetX) - POS_DAMPING * velX;
+        const forceY = -POS_STIFFNESS * (posY - targetY) - POS_DAMPING * velY;
+        velX += forceX * dt;
+        velY += forceY * dt;
+        posX += velX * dt;
+        posY += velY * dt;
+
+        // Morph spring (circle scale) — reads from ref directly
+        const morphForce = -MORPH_STIFFNESS * (morphScale - morphTargetRef.current) - MORPH_DAMPING * morphVel;
+        morphVel += morphForce * dt;
+        morphScale += morphVel * dt;
+
+        // Arrow entrance spring (triggers when circle fully collapsed)
+        arrowTarget = morphScale < 0.05 ? 1 : 0;
+        const arrowForce = -ARROW_STIFFNESS * (arrowScale - arrowTarget) - ARROW_DAMPING * arrowVel;
+        arrowVel += arrowForce * dt;
+        arrowScale += arrowVel * dt;
+
+        // Velocity-aware deformation
+        const speed = Math.sqrt(velX * velX + velY * velY);
+        const stretchFactor = Math.min(speed * VELOCITY_SCALE, 1);
+        const scaleAlong = 1 + (MAX_STRETCH - 1) * stretchFactor;
+        const scalePerp = 1 - (1 - MAX_SQUASH) * stretchFactor;
+
+        // Stable rotation angle — blend to 0 at low speed to avoid flicker
+        if (speed > SPEED_THRESHOLD) {
+          lastAngle = Math.atan2(velY, velX);
+        } else {
+          lastAngle += (0 - lastAngle) * Math.min(1, 8 * dt);
+        }
+
+        // Apply transforms
+        wrap.style.transform = `translate(${posX}px, ${posY}px)`;
+
+        // Circle: asymmetric morph (X collapses faster → narrows into line)
+        const ms = Math.max(0, Math.min(1, morphScale));
+        const morphX = Math.pow(ms, 1.8);
+        const morphY = Math.pow(ms, 0.7);
+        const angleDeg = (lastAngle * 180) / Math.PI;
+        circle.style.transform = `rotate(${angleDeg}deg) scale(${scaleAlong * morphX}, ${scalePerp * morphY})`;
+
+        // Arrow: spring-driven entrance with overshoot
+        const as = Math.max(0, arrowScale);
+        arrow.style.opacity = `${Math.min(1, as)}`;
+        arrow.style.transform = `scale(${as})`;
+      }
+
+      rafId = requestAnimationFrame(loop);
+    };
+
     document.addEventListener("mousemove", handleMove);
+    rafId = requestAnimationFrame(loop);
 
     return () => {
       document.removeEventListener("mousemove", handleMove);
+      cancelAnimationFrame(rafId);
       style.remove();
     };
   }, []);
 
-  // Card hover → morph circle to arrow with debounce
+  // Sync onCard state directly to the mutable ref (no DOM roundtrip)
+  useEffect(() => {
+    morphTargetRef.current = onCard ? 0 : 1;
+  }, [onCard]);
+
+  // Card hover detection
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -95,21 +187,6 @@ export function CursorMorph() {
     };
   }, []);
 
-  // Apply morph styles imperatively for snappiness
-  useEffect(() => {
-    const circle = circleRef.current;
-    const arrow = arrowRef.current;
-    if (!circle || !arrow) return;
-
-    if (onCard) {
-      circle.style.transform = "scale(0)";
-      arrow.style.opacity = "1";
-    } else {
-      circle.style.transform = "scale(1)";
-      arrow.style.opacity = "0";
-    }
-  }, [onCard]);
-
   return (
     <div className="demo-page" style={{ background: BG }}>
       <style>{`
@@ -135,7 +212,7 @@ export function CursorMorph() {
         }
       `}</style>
 
-      {/* Custom cursor */}
+      {/* Spring-driven custom cursor */}
       <div
         ref={wrapRef}
         style={{
@@ -151,7 +228,7 @@ export function CursorMorph() {
           mixBlendMode: "difference",
         }}
       >
-        {/* Arrow layer (behind circle) */}
+        {/* Arrow layer */}
         <div
           ref={arrowRef}
           style={{
@@ -166,13 +243,12 @@ export function CursorMorph() {
             fontWeight: 400,
             lineHeight: 1,
             opacity: 0,
-            transition: "opacity 200ms ease",
           }}
         >
           {"\u2192"}
         </div>
 
-        {/* Circle layer (on top) */}
+        {/* Circle layer — deforms with velocity */}
         <div
           ref={circleRef}
           style={{
@@ -180,13 +256,12 @@ export function CursorMorph() {
             inset: 0,
             borderRadius: "50%",
             background: "white",
-            transition: "transform 300ms cubic-bezier(0.4, 0, 0.2, 1)",
-            transform: "scale(1)",
+            transformOrigin: "center center",
           }}
         />
       </div>
 
-      {/* Card list */}
+      {/* Cards */}
       <div
         ref={containerRef}
         style={{

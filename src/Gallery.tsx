@@ -3,10 +3,16 @@ import { bg, demoPalettes, text } from "./palette";
 
 const demos = [
   {
-    path: "/water-ripple",
-    title: "Water Ripple",
-    description: "Click anywhere — ripples propagate like water",
-    bg: bg(demoPalettes["water-ripple"]),
+    path: "/dvd-bounce",
+    title: "DVD Bounce",
+    description: "Classic bouncing logo with squash physics, corner celebrations, and mouse influence",
+    bg: bg(demoPalettes["dvd-bounce"]),
+  },
+  {
+    path: "/slide-unlock",
+    title: "Slide to Unlock",
+    description: "Drag with fluid WebGL shader trail, spring snap-back, and switchable patterns",
+    bg: bg(demoPalettes["slide-unlock"]),
   },
   {
     path: "/glass-pull",
@@ -15,34 +21,10 @@ const demos = [
     bg: bg(demoPalettes["glass-pull"]),
   },
   {
-    path: "/magnetic-button",
-    title: "Magnetic Button",
-    description: "Cursor proximity warps the button toward you",
-    bg: bg(demoPalettes["magnetic-button"]),
-  },
-  {
-    path: "/text-scramble",
-    title: "Text Scramble",
-    description: "Characters randomize then resolve into words",
-    bg: bg(demoPalettes["text-scramble"]),
-  },
-  {
-    path: "/elastic-toggle",
-    title: "Elastic Toggle",
-    description: "Bouncy physics-driven switch with overshoot",
-    bg: bg(demoPalettes["elastic-toggle"]),
-  },
-  {
     path: "/fisheye-text",
     title: "Fisheye Text",
     description: "Type freely — letters stretch wide on hover with spring physics",
     bg: bg(demoPalettes["fisheye-text"]),
-  },
-  {
-    path: "/figpal-cursor",
-    title: "Figpal Cursor",
-    description: "A companion character trails your cursor with lerp inertia",
-    bg: bg(demoPalettes["figpal-cursor"]),
   },
   {
     path: "/cursor-morph",
@@ -63,22 +45,40 @@ const demos = [
     bg: bg(demoPalettes["task-ranking"]),
   },
   {
-    path: "/dvd-bounce",
-    title: "DVD Bounce",
-    description: "Classic bouncing logo with squash physics, corner celebrations, and mouse influence",
-    bg: bg(demoPalettes["dvd-bounce"]),
-  },
-  {
-    path: "/slide-unlock",
-    title: "Slide to Unlock",
-    description: "Drag with fluid WebGL shader trail, spring snap-back, and switchable patterns",
-    bg: bg(demoPalettes["slide-unlock"]),
-  },
-  {
     path: "/figma-highfive",
     title: "Figma High-Five",
     description: "FigJam share modal with a very useful permission level",
     bg: bg(demoPalettes["figma-highfive"]),
+  },
+  {
+    path: "/airpods-nc",
+    title: "AirPods Contact NC",
+    description: "Noise cancellation settings, but per contact",
+    bg: bg(demoPalettes["airpods-nc"]),
+  },
+  {
+    path: "/spotify-wrapped-ads",
+    title: "Spotify Wrapped for Ads",
+    description: "Your year in review — but for all the ads you endured",
+    bg: bg(demoPalettes["spotify-wrapped-ads"]),
+  },
+  {
+    path: "/strava-flights",
+    title: "Strava → Flights",
+    description: "Redeem your running miles as airline miles",
+    bg: bg(demoPalettes["strava-flights"]),
+  },
+  {
+    path: "/spotify-dj",
+    title: "Spotify DJ Call-In",
+    description: "Call in to the AI DJ like a radio station",
+    bg: bg(demoPalettes["spotify-dj"]),
+  },
+  {
+    path: "/companion-zoo",
+    title: "Companion Zoo",
+    description: "Software companion animals through the ages",
+    bg: bg(demoPalettes["companion-zoo"]),
   },
 ];
 
@@ -88,10 +88,12 @@ export function Gallery() {
   return (
     <div
       style={{
-        minHeight: "100%",
+        minHeight: "100vh",
+        height: "100%",
         background: galleryBg,
         color: text.dark.primary,
         padding: "80px 40px",
+        overflowY: "auto",
       }}
     >
       <h1

@@ -17,6 +17,11 @@ import { DvdBounce } from "./demos/dvd-bounce/DvdBounce";
 import { SlideUnlock } from "./demos/slide-unlock/SlideUnlock";
 import { FigmaHighfive } from "./demos/figma-highfive/FigmaHighfive";
 import { FrameGuide } from "./demos/frame-guide/FrameGuide";
+import { AirpodsNC } from "./demos/airpods-nc/AirpodsNC";
+import { SpotifyWrappedAds } from "./demos/spotify-wrapped-ads/SpotifyWrappedAds";
+import { StravaFlights } from "./demos/strava-flights/StravaFlights";
+import { SpotifyDJ } from "./demos/spotify-dj/SpotifyDJ";
+import { CompanionZoo } from "./demos/companion-zoo/CompanionZoo";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -37,6 +42,11 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/slide-unlock" element={<SlideUnlock />} />
         <Route path="/figma-highfive" element={<FigmaHighfive />} />
         <Route path="/frame-guide" element={<FrameGuide />} />
+        <Route path="/airpods-nc" element={<AirpodsNC />} />
+        <Route path="/spotify-wrapped-ads" element={<SpotifyWrappedAds />} />
+        <Route path="/strava-flights" element={<StravaFlights />} />
+        <Route path="/spotify-dj" element={<SpotifyDJ />} />
+        <Route path="/companion-zoo" element={<CompanionZoo />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>
