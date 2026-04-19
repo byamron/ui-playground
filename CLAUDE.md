@@ -28,6 +28,10 @@ Physics (springs, momentum, deformation, fluid dynamics) is a brand differentiat
 - Don't let physics accuracy become a rabbit hole that blocks shipping. Performance and craft come first.
 - For app-mimicry demos (Soren-style), follow the source app's behavior — don't add physics where the real product doesn't have it.
 
+## Craft Corrections
+
+When the user gives a craft correction (spacing, timing, color, feel), implement it immediately without restating the problem or explaining your approach. Confirm with the result, not the plan. Exception: if the correction would conflict with an established design pattern, regress another aspect of the demo, or has a non-obvious tradeoff, flag it briefly before implementing.
+
 ## Approach
 
 For non-trivial work (new demo, significant refactor, new infrastructure), briefly state your intended approach and wait for confirmation before writing code. One or two sentences is enough. For larger scope, use plan mode. This does not apply to small fixes or tweaks.
