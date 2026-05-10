@@ -17,6 +17,7 @@ import { DvdBounce } from "./demos/dvd-bounce/DvdBounce";
 import { SlideUnlock } from "./demos/slide-unlock/SlideUnlock";
 import { FigmaHighfive } from "./demos/figma-highfive/FigmaHighfive";
 import { FrameGuide } from "./demos/frame-guide/FrameGuide";
+import { StravaDelta } from "./demos/strava-delta/StravaDelta";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -37,6 +38,7 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/slide-unlock" element={<SlideUnlock />} />
         <Route path="/figma-highfive" element={<FigmaHighfive />} />
         <Route path="/frame-guide" element={<FrameGuide />} />
+        <Route path="/strava-delta" element={<StravaDelta />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>

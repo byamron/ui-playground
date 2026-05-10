@@ -80,6 +80,12 @@ const demos = [
     description: "FigJam share modal with a very useful permission level",
     bg: bg(demoPalettes["figma-highfive"]),
   },
+  {
+    path: "/strava-delta",
+    title: "Strava \u00D7 Delta",
+    description: "Your running miles, redeemed for SkyMiles",
+    bg: bg(demoPalettes["strava-delta"]),
+  },
 ];
 
 const galleryBg = bg({ hue: 220, mode: "dark", intensity: 0 });
