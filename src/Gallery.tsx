@@ -80,6 +80,12 @@ const demos = [
     description: "Software companion animals through the ages",
     bg: bg(demoPalettes["companion-zoo"]),
   },
+  {
+    path: "/color-hold-pick",
+    title: "Color Hold Pick",
+    description: "Press and hold the rainbow swatch — the card becomes an HSB canvas",
+    bg: bg(demoPalettes["color-hold-pick"]),
+  },
 ];
 
 const galleryBg = bg({ hue: 220, mode: "dark", intensity: 0 });
