@@ -132,4 +132,6 @@ export const demoPalettes = {
   "spotify-dj": { hue: HUES.sage, mode: "dark" as const, intensity: 1 as const },
   "companion-zoo": { hue: HUES.gold, mode: "dark" as const, intensity: 1 as const },
   "color-hold-pick": { hue: HUES.sky, mode: "light" as const, intensity: 0 as const },
+  "github-sparkline": { hue: HUES.gold, mode: "dark" as const, intensity: 1 as const },
+  "page-transition": { hue: HUES.gold, mode: "light" as const, intensity: 0 as const },
 } as const;

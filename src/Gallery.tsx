@@ -86,6 +86,18 @@ const demos = [
     description: "Press and hold the rainbow swatch — the card becomes an HSB canvas",
     bg: bg(demoPalettes["color-hold-pick"]),
   },
+  {
+    path: "/github-sparkline",
+    title: "GitHub Sparkline",
+    description: "Sparkline hints at the heatmap — bars shake-and-settle on expand",
+    bg: bg(demoPalettes["github-sparkline"]),
+  },
+  {
+    path: "/page-transition",
+    title: "Page Transition",
+    description: "Click → arrow winds up and flies off as the page fades, back arrow mirrors on return",
+    bg: bg(demoPalettes["page-transition"]),
+  },
 ];
 
 const galleryBg = bg({ hue: 220, mode: "dark", intensity: 0 });
