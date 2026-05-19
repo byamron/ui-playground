@@ -80,6 +80,12 @@ const demos = [
     description: "Software companion animals through the ages",
     bg: bg(demoPalettes["companion-zoo"]),
   },
+  {
+    path: "/github-sparkline",
+    title: "GitHub Sparkline",
+    description: "Sparkline hints at the heatmap — bars shake-and-settle on expand",
+    bg: bg(demoPalettes["github-sparkline"]),
+  },
 ];
 
 const galleryBg = bg({ hue: 220, mode: "dark", intensity: 0 });
