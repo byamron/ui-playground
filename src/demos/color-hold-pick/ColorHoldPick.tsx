@@ -448,6 +448,26 @@ export function ColorHoldPick() {
     selected: "blue",
   });
 
+  // Track the in-flight gesture so we can tear it down on unmount —
+  // otherwise the hold timer can fire on a dead component.
+  const activeGestureRef = useRef<{
+    timer: number | null;
+    onMove: ((e: PointerEvent) => void) | null;
+    onUp: (() => void) | null;
+  }>({ timer: null, onMove: null, onUp: null });
+
+  useEffect(() => {
+    return () => {
+      const g = activeGestureRef.current;
+      if (g.timer !== null) window.clearTimeout(g.timer);
+      if (g.onMove) window.removeEventListener("pointermove", g.onMove);
+      if (g.onUp) {
+        window.removeEventListener("pointerup", g.onUp);
+        window.removeEventListener("pointercancel", g.onUp);
+      }
+    };
+  }, []);
+
   useLayoutEffect(() => {
     if (!slotRef.current || !phoneRef.current || !cardRef.current) return;
     const slot = slotRef.current.getBoundingClientRect();
@@ -507,6 +527,7 @@ export function ColorHoldPick() {
       holdTimer = window.setTimeout(() => {
         enterPicker(e.clientX, e.clientY);
       }, HOLD_DELAY);
+      activeGestureRef.current.timer = holdTimer;
 
       const onMove = (ev: PointerEvent) => {
         const dx = ev.clientX - pressOrigin.current.x;
@@ -535,6 +556,7 @@ export function ColorHoldPick() {
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
         window.removeEventListener("pointercancel", onUp);
+        activeGestureRef.current = { timer: null, onMove: null, onUp: null };
 
         if (!entered) {
           // Tap below hold threshold → playful spin, no state change.
@@ -574,6 +596,8 @@ export function ColorHoldPick() {
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
       window.addEventListener("pointercancel", onUp);
+      activeGestureRef.current.onMove = onMove;
+      activeGestureRef.current.onUp = onUp;
     },
     [x, y, appColor, selected, revealR, revealCX, revealCY, phoneScale, jiggleRotate]
   );
@@ -881,6 +905,7 @@ export function ColorHoldPick() {
             visibility: measured ? "visible" : "hidden",
             zIndex: 5,
             overflow: "hidden",
+            transition: "border-radius 0.25s ease",
           }}
         >
           <motion.div
