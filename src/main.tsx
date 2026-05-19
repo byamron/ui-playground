@@ -22,6 +22,7 @@ import { SpotifyWrappedAds } from "./demos/spotify-wrapped-ads/SpotifyWrappedAds
 import { StravaFlights } from "./demos/strava-flights/StravaFlights";
 import { SpotifyDJ } from "./demos/spotify-dj/SpotifyDJ";
 import { CompanionZoo } from "./demos/companion-zoo/CompanionZoo";
+import { GithubSparkline } from "./demos/github-sparkline/GithubSparkline";
 import { PageTransition } from "./demos/page-transition/PageTransition";
 
 createRoot(document.getElementById("root")!).render(
@@ -48,6 +49,7 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/strava-flights" element={<StravaFlights />} />
         <Route path="/spotify-dj" element={<SpotifyDJ />} />
         <Route path="/companion-zoo" element={<CompanionZoo />} />
+        <Route path="/github-sparkline" element={<GithubSparkline />} />
         <Route path="/page-transition" element={<PageTransition />} />
       </Routes>
     </BrowserRouter>

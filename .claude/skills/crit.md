@@ -33,10 +33,11 @@ A demo must score 4+ on its primary bar (craft or product thinking) to clear the
 - 3: Needs some framing work but the core reads on video.
 - 1: Would look small, cluttered, or confusing in a Twitter embed.
 
-**3. Dev Panel Integration** (Fourth-wall break for technical audience)
-- 5: Panel adds a layer of exploration — defaults are the "classic" experience, cranking reveals craft depth. Panel itself is well-designed.
-- 3: Panel exists and works but doesn't add much to the experience.
-- 1: No panel, or panel feels like debug UI rather than shipped feature.
+**3. Dev Panel Integration** (Fourth-wall break for technical audience — score ONLY if the demo has tunable parameters worth exposing)
+- Only apply this dimension when the demo has meaningful knobs (spring physics, randomness ranges, timing curves, etc.). The presence of a panel is not itself a craft score — either the demo needs one or it doesn't. Skip this dimension entirely if the demo has no tunable craft levers.
+- 5: Panel exposes the real craft levers. Defaults are the "classic" experience, cranking reveals craft depth. Panel itself is well-designed.
+- 3: Panel exists but doesn't expose the parameters that actually matter for feel.
+- 1: Demo has tunable craft levers but no panel to expose them.
 
 ### For CRAFT demos (physics, interaction design, animation):
 
