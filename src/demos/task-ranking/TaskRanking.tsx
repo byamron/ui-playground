@@ -16,7 +16,7 @@ interface Task {
   description?: string;
 }
 
-const SAMPLE_TASKS: Task[] = [
+export const RANKING_SAMPLE_TASKS: Task[] = [
   { id: "1", title: "Ship v2.0 release", description: "Final QA and deployment" },
   { id: "2", title: "Fix auth token refresh", description: "Users getting logged out" },
   { id: "3", title: "Design system audit", description: "Color and spacing consistency" },
@@ -24,6 +24,8 @@ const SAMPLE_TASKS: Task[] = [
   { id: "5", title: "Performance profiling", description: "Bundle size regression" },
   { id: "6", title: "API rate limiting", description: "Prevent abuse on public endpoints" },
 ];
+
+const SAMPLE_TASKS: Task[] = RANKING_SAMPLE_TASKS;
 
 // Binary search ranking — returns the final sorted order
 async function* binarySearchRank(

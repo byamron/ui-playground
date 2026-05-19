@@ -15,7 +15,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 
 const FONT = "-apple-system, 'SF Pro Text', 'Helvetica Neue', sans-serif";
 
-const STRAVA = {
+export const STRAVA_TOKENS = {
   orange: "#FC4C02",
   orangeLight: "#FF6B35",
   bg: "#FFFFFF",
@@ -25,7 +25,7 @@ const STRAVA = {
   cardBg: "#F7F7FA",
 };
 
-const AIRLINE = {
+export const AIRLINE_TOKENS = {
   purple: "#003A70",
   purpleDark: "#00234A",
   gold: "#C8A951",
@@ -35,6 +35,11 @@ const AIRLINE = {
   red: "#C41230",
   white: "#FFFFFF",
 };
+
+export const STRAVA_FONT = "-apple-system, 'SF Pro Text', 'Helvetica Neue', sans-serif";
+
+const STRAVA = STRAVA_TOKENS;
+const AIRLINE = AIRLINE_TOKENS;
 
 // ═══════════════════════════════════════════════════════════════
 // App switch animation states

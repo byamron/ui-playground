@@ -170,6 +170,16 @@ function SettingsHeader() {
   );
 }
 
+export function NCSegmentedControl({
+  value,
+  onChange,
+}: {
+  value: NCMode;
+  onChange: (v: NCMode) => void;
+}) {
+  return <SegmentedControl value={value} onChange={onChange} />;
+}
+
 function SegmentedControl({
   value,
   onChange,
@@ -233,6 +243,16 @@ function SegmentedControl({
 }
 
 const MODE_CYCLE: NCMode[] = ["off", "transparency", "noise-cancellation"];
+
+export const NC_PREVIEW_CONTACTS = INITIAL_CONTACTS;
+
+export function NCContactRow(props: {
+  contact: Contact;
+  onModeChange: (mode: NCMode) => void;
+  isLast: boolean;
+}) {
+  return <ContactRow {...props} />;
+}
 
 function ContactRow({
   contact,

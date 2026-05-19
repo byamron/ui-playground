@@ -36,7 +36,10 @@ const COMPANIONS: CompanionDef[] = [
 // Clippy companion
 // ═══════════════════════════════════════════════════════════════
 
-function Clippy() {
+export function Clippy({
+  autoplay = true,
+  introDelay = 1500,
+}: { autoplay?: boolean; introDelay?: number } = {}) {
   const [visible, setVisible] = useState(false);
   const [message, setMessage] = useState("");
   const [tapping, setTapping] = useState(false);
@@ -49,6 +52,7 @@ function Clippy() {
   ];
 
   useEffect(() => {
+    if (!autoplay) return;
     // Clippy appears after a delay, taps, then shows a message
     const showTimer = setTimeout(() => {
       setTapping(true);
@@ -57,14 +61,14 @@ function Clippy() {
         setVisible(true);
         setMessage(messages[0]);
       }, 800);
-    }, 1500);
+    }, introDelay);
 
     return () => clearTimeout(showTimer);
-  }, []);
+  }, [autoplay, introDelay]);
 
   // Clippy cycles through messages unprompted — authentically annoying
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || !autoplay) return;
     let msgIdx = 0;
     const interval = setInterval(() => {
       setTapping(true);
@@ -75,7 +79,7 @@ function Clippy() {
       }, 500);
     }, 4000);
     return () => clearInterval(interval);
-  }, [visible]);
+  }, [visible, autoplay]);
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>

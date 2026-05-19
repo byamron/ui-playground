@@ -417,6 +417,12 @@ interface ArrowProps {
   color: string;
 }
 
+export const PAGE_TRANSITION_ARROW_MS = ARROW_MS;
+export function PtArrowGlyph(props: ArrowProps) {
+  return <ArrowGlyph {...props} />;
+}
+export { Keyframes as PtKeyframes };
+
 function ArrowGlyph({ direction, sliding, hover, color }: ArrowProps) {
   const animName = direction === "right" ? "ptArrowOutRight" : "ptArrowOutLeft";
   const hoverNudge = hover ? (direction === "right" ? 3 : -3) : 0;

@@ -214,6 +214,9 @@ const PALETTE_GLOWS = [
   { h: 280, s: 55, l: 52 }, // Purple
 ];
 
+export const SLIDE_UNLOCK_PALETTE_GLOWS = PALETTE_GLOWS;
+export { composeFragment as slideUnlockComposeFragment };
+
 // Compose a fragment shader from a texture + palette
 function composeFragment(textureIdx: number, paletteIdx: number): string {
   return `#version 300 es

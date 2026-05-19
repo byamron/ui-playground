@@ -18,10 +18,38 @@ const ITEMS = [
   "Docs",
 ];
 
-const BG_COLOR = bg(demoPalettes["glass-pull"]);
+export const GLASS_PULL_BG = bg(demoPalettes["glass-pull"]);
+
+// CSS for the list/items used by both the full demo and the preview.
+// `parentSelector` lets the preview scope styles without leaking to the gallery.
+export function glassPullCSS(parentSelector = ""): string {
+  const p = parentSelector ? `${parentSelector} ` : "";
+  return `
+    ${p}.glass-list {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    ${p}.glass-item {
+      padding: 16px 24px;
+      font-size: 17px;
+      color: ${text.dark.tertiary};
+      cursor: default;
+      position: relative;
+      z-index: 1;
+      transition: color 0.2s ease;
+      user-select: none;
+      border-radius: 10px;
+    }
+    ${p}.glass-item[data-active="true"] {
+      color: ${text.dark.primary};
+    }
+  `;
+}
 
 // Defaults — these become the DevPanel's starting values
-const DEFAULTS = {
+export const GLASS_PULL_DEFAULTS = {
   springStiffness: 280,
   springDamping: 23,
   pillMaxLean: 1.5,
@@ -51,7 +79,7 @@ const STATIC = {
 // Tunable config — read via ref so the imperative loop picks up changes
 // ═══════════════════════════════════════════════════════════════
 
-interface TunableConfig {
+export interface TunableConfig {
   springStiffness: number;
   springDamping: number;
   pillMaxLean: number;
@@ -94,7 +122,7 @@ function stepSpring(s: SpringState, dt: number, k: number, c: number): boolean {
 // Imperative glass highlight system
 // ═══════════════════════════════════════════════════════════════
 
-function setupGlassHighlight(
+export function setupGlassHighlight(
   container: HTMLElement,
   configRef: React.MutableRefObject<TunableConfig>,
 ): () => void {
@@ -561,16 +589,16 @@ export function GlassPull() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Tunable state — DevPanel drives these, ref passes them into the imperative loop
-  const [stiffness, setStiffness] = useState(DEFAULTS.springStiffness);
-  const [damping, setDamping] = useState(DEFAULTS.springDamping);
-  const [lean, setLean] = useState(DEFAULTS.pillMaxLean);
-  const [tilt, setTilt] = useState(DEFAULTS.pillMaxTilt);
-  const [cardLean, setCardLean] = useState(DEFAULTS.cardMaxLean);
-  const [stretch, setStretch] = useState(DEFAULTS.stretchAmount);
-  const [entrance, setEntrance] = useState(DEFAULTS.entranceScale);
-  const [pressure, setPressure] = useState(DEFAULTS.glassPressure);
-  const [highlight, setHighlight] = useState(DEFAULTS.highlightIntensity);
-  const [cursorLight, setCursorLight] = useState(DEFAULTS.cursorLight);
+  const [stiffness, setStiffness] = useState(GLASS_PULL_DEFAULTS.springStiffness);
+  const [damping, setDamping] = useState(GLASS_PULL_DEFAULTS.springDamping);
+  const [lean, setLean] = useState(GLASS_PULL_DEFAULTS.pillMaxLean);
+  const [tilt, setTilt] = useState(GLASS_PULL_DEFAULTS.pillMaxTilt);
+  const [cardLean, setCardLean] = useState(GLASS_PULL_DEFAULTS.cardMaxLean);
+  const [stretch, setStretch] = useState(GLASS_PULL_DEFAULTS.stretchAmount);
+  const [entrance, setEntrance] = useState(GLASS_PULL_DEFAULTS.entranceScale);
+  const [pressure, setPressure] = useState(GLASS_PULL_DEFAULTS.glassPressure);
+  const [highlight, setHighlight] = useState(GLASS_PULL_DEFAULTS.highlightIntensity);
+  const [cursorLight, setCursorLight] = useState(GLASS_PULL_DEFAULTS.cursorLight);
 
   const configRef = useRef<TunableConfig>({} as TunableConfig);
 
@@ -597,7 +625,7 @@ export function GlassPull() {
   return (
     <DevPanel
       label="Glass Pull"
-      background={BG_COLOR}
+      background={GLASS_PULL_BG}
       defaultOpen={false}
       controls={
         <>
@@ -617,28 +645,7 @@ export function GlassPull() {
         </>
       }
     >
-      <style>{`
-        .glass-list {
-          position: relative;
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-        }
-        .glass-item {
-          padding: 16px 24px;
-          font-size: 17px;
-          color: ${text.dark.tertiary};
-          cursor: default;
-          position: relative;
-          z-index: 1;
-          transition: color 0.2s ease;
-          user-select: none;
-          border-radius: 10px;
-        }
-        .glass-item[data-active="true"] {
-          color: ${text.dark.primary};
-        }
-      `}</style>
+      <style>{glassPullCSS()}</style>
 
       <div ref={containerRef} className="glass-list">
         {ITEMS.map((item) => (

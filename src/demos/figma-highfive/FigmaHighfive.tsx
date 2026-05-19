@@ -245,6 +245,13 @@ function useShakeDetection(enabled: boolean, onShake: () => void) {
 // Access row (with optional permission dropdown)
 // ═══════════════════════════════════════════════════════════════
 
+export { Avatar as FigmaAvatar };
+export const FIGMA_PERMS = PERMS;
+
+export function FigmaAccessRow(props: Parameters<typeof AccessRow>[0]) {
+  return <AccessRow {...props} />;
+}
+
 function AccessRow({
   icon, name, nameExtra, permission, isDropdown,
   dropdownOpen, onToggle, onSelect, hoveredPerm, onHoverPerm,

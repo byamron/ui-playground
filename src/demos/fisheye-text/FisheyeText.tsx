@@ -10,25 +10,29 @@ import { bg, demoPalettes, text as textColors } from "../../palette";
  * Uses Recursive Variable font (wdth axis: 75–125)
  */
 
-const FONT_SIZE = 52;
+export const FISHEYE_FONT_SIZE = 52;
 const BG = bg(demoPalettes["fisheye-text"]);
 const PLACEHOLDER = "hover over me";
 const INITIAL_TEXT = "proximity";
 const SPRING_STIFFNESS = 320;
 const SPRING_DAMPING = 34;
-const MAX_WIDTH = 125; // max variable font width
+export const FISHEYE_MAX_WIDTH = 125; // max variable font width
 const MIN_WIDTH = 75; // min variable font width
 const REST_WIDTH = 100; // normal width
 const MAX_LIFT = -6; // pixels to lift toward cursor
 const PUSH_RANGE = 4;
+const FONT_SIZE = FISHEYE_FONT_SIZE;
+const MAX_WIDTH = FISHEYE_MAX_WIDTH;
 
-// Recursive Variable font is loaded from index.html
-
-export function FisheyeText() {
-  const [text, setText] = useState(INITIAL_TEXT);
-  const [cursorPos, setCursorPos] = useState(0);
-  const [hoveredChar, setHoveredChar] = useState<number | null>(null);
-  const hiddenRef = useRef<HTMLTextAreaElement>(null);
+// Reusable spring system shared by the demo and preview.
+// Owns charRefs + springsRef. Caller passes hoveredChar + text;
+// hook returns a ref-registrar to attach to each char span.
+export function useFisheyeSprings(
+  text: string,
+  hoveredChar: number | null,
+  opts?: { fontSize?: number },
+): (i: number) => (el: HTMLSpanElement | null) => void {
+  const fontSize = opts?.fontSize ?? FONT_SIZE;
   const charRefs = useRef<Map<number, HTMLSpanElement>>(new Map());
   const springsRef = useRef<Map<number, {
     wdth: number; x: number; y: number;
@@ -37,52 +41,32 @@ export function FisheyeText() {
   }>>(new Map());
   const rafRef = useRef<number>(0);
 
-  const focusInput = useCallback(() => {
-    hiddenRef.current?.focus();
-  }, []);
-
-  useEffect(() => {
-    focusInput();
-  }, [focusInput]);
-
-  // Spring physics loop
   useEffect(() => {
     const step = () => {
       const dt = 1 / 60;
-
       springsRef.current.forEach((spring, idx) => {
-        // wdth spring (variable font width axis)
         const forceW = -SPRING_STIFFNESS * (spring.wdth - spring.targetWdth) - SPRING_DAMPING * spring.velWdth;
         spring.velWdth += forceW * dt;
         spring.wdth += spring.velWdth * dt;
-
-        // x spring (horizontal push)
         const forceX = -SPRING_STIFFNESS * (spring.x - spring.targetX) - SPRING_DAMPING * spring.velX;
         spring.velX += forceX * dt;
         spring.x += spring.velX * dt;
-
-        // y spring (vertical lift toward cursor)
         const forceY = -SPRING_STIFFNESS * (spring.y - spring.targetY) - SPRING_DAMPING * spring.velY;
         spring.velY += forceY * dt;
         spring.y += spring.velY * dt;
-
         const el = charRefs.current.get(idx);
         if (el) {
           el.style.fontVariationSettings = `'wdth' ${spring.wdth}`;
           el.style.transform = `translate(${spring.x}px, ${spring.y}px)`;
         }
       });
-
       rafRef.current = requestAnimationFrame(step);
     };
-
     rafRef.current = requestAnimationFrame(step);
     return () => cancelAnimationFrame(rafRef.current);
   }, []);
 
-  // Update spring targets when hover changes
   useEffect(() => {
-    // Ensure springs exist for all characters
     for (let i = 0; i < text.length; i++) {
       if (!springsRef.current.has(i)) {
         springsRef.current.set(i, {
@@ -92,12 +76,10 @@ export function FisheyeText() {
         });
       }
     }
-    // Clean up extras
     springsRef.current.forEach((_, key) => {
       if (key >= text.length) springsRef.current.delete(key);
     });
 
-    // Set targets based on proximity to hovered character
     for (let i = 0; i < text.length; i++) {
       const spring = springsRef.current.get(i)!;
       if (hoveredChar === null) {
@@ -113,11 +95,9 @@ export function FisheyeText() {
         } else if (distance <= PUSH_RANGE) {
           const direction = Math.sign(i - hoveredChar);
           const falloff = 1 - distance / (PUSH_RANGE + 1);
-          const pushPx = FONT_SIZE * 0.35 * falloff * direction;
-          // Compress neighbors using variable font width
+          const pushPx = fontSize * 0.35 * falloff * direction;
           spring.targetWdth = REST_WIDTH - (REST_WIDTH - MIN_WIDTH) * 0.4 * falloff;
           spring.targetX = pushPx;
-          // Slight dome lift for near neighbors
           spring.targetY = MAX_LIFT * 0.4 * falloff;
         } else {
           spring.targetWdth = REST_WIDTH;
@@ -126,7 +106,30 @@ export function FisheyeText() {
         }
       }
     }
-  }, [hoveredChar, text.length, text]);
+  }, [hoveredChar, text.length, text, fontSize]);
+
+  return (i: number) => (el: HTMLSpanElement | null) => {
+    if (el) charRefs.current.set(i, el);
+    else charRefs.current.delete(i);
+  };
+}
+
+// Recursive Variable font is loaded from index.html
+
+export function FisheyeText() {
+  const [text, setText] = useState(INITIAL_TEXT);
+  const [cursorPos, setCursorPos] = useState(0);
+  const [hoveredChar, setHoveredChar] = useState<number | null>(null);
+  const hiddenRef = useRef<HTMLTextAreaElement>(null);
+  const registerChar = useFisheyeSprings(text, hoveredChar);
+
+  const focusInput = useCallback(() => {
+    hiddenRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    focusInput();
+  }, [focusInput]);
 
   const handleInput = () => {
     const el = hiddenRef.current;
@@ -239,10 +242,7 @@ export function FisheyeText() {
             >
               {cursorPos === i && <Caret />}
               <span
-                ref={(el) => {
-                  if (el) charRefs.current.set(i, el);
-                  else charRefs.current.delete(i);
-                }}
+                ref={registerChar(i)}
                 onMouseEnter={() => setHoveredChar(i)}
                 onMouseLeave={() => setHoveredChar(null)}
                 onClick={(e) => {

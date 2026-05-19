@@ -15,7 +15,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
 const FONT = "-apple-system, 'SF Pro Text', 'Helvetica Neue', sans-serif";
 
-const SPOTIFY = {
+export const SPOTIFY_TOKENS = {
   black: "#121212",
   darkGray: "#1A1A1A",
   cardGray: "#282828",
@@ -25,15 +25,21 @@ const SPOTIFY = {
   textMuted: "rgba(255,255,255,0.3)",
 };
 
-type Phase = "player" | "ringing" | "connected";
+export const SPOTIFY_FONT = FONT;
 
-const DJ_LINES = [
+export const SPOTIFY_DJ_LINES = [
   "I'm not gonna play it again.",
   "47 plays of 'drivers license' last month. You okay?",
   "You skipped 12 songs in 3 seconds each. What are we looking for?",
   "Your taste? Chaotic neutral.",
   "You need to move on. Musically and emotionally.",
 ];
+
+const SPOTIFY = SPOTIFY_TOKENS;
+
+type Phase = "player" | "ringing" | "connected";
+
+const DJ_LINES = SPOTIFY_DJ_LINES;
 
 // ═══════════════════════════════════════════════════════════════
 // Subcomponents

@@ -10,6 +10,13 @@ import { bg, text } from "../../palette";
 type AccentColor = "table" | "portrait" | "sky" | "pizza";
 type AppearanceMode = "system" | "light" | "dark";
 
+export const THEME_ACCENTS: { color: AccentColor; swatch: string; hue: number }[] = [
+  { color: "table", swatch: "hsl(34, 50%, 60%)", hue: 34 },
+  { color: "portrait", swatch: "hsl(47, 34%, 64%)", hue: 47 },
+  { color: "sky", swatch: "hsl(204, 50%, 70%)", hue: 204 },
+  { color: "pizza", swatch: "hsl(15, 53%, 64%)", hue: 15 },
+];
+
 const ACCENTS: { color: AccentColor; swatch: string; hue: number }[] = [
   { color: "table", swatch: "hsl(34, 50%, 60%)", hue: 34 },
   { color: "portrait", swatch: "hsl(47, 34%, 64%)", hue: 47 },
@@ -88,6 +95,10 @@ const MODES: { mode: AppearanceMode; Icon: () => React.ReactNode; label: string 
 ];
 
 // Mini glass pill for hover
+export function setupThemePill(container: HTMLElement): () => void {
+  return setupPill(container);
+}
+
 function setupPill(container: HTMLElement): () => void {
   let pill: HTMLDivElement | null = null;
   let currentCtrl: HTMLElement | null = null;

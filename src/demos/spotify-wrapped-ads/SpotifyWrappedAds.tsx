@@ -24,7 +24,7 @@ interface Card {
   detail?: string;
 }
 
-const CARDS: Card[] = [
+export const WRAPPED_CARDS: Card[] = [
   {
     id: 0,
     gradient: "linear-gradient(135deg, #1DB954 0%, #148A3C 35%, #0A4720 70%, #191414 100%)",
@@ -66,6 +66,12 @@ const CARDS: Card[] = [
     detail: "Or don't. See you next year.",
   },
 ];
+
+export const WRAPPED_FONT = FONT_DISPLAY;
+
+export type WrappedCard = Card;
+
+const CARDS: Card[] = WRAPPED_CARDS;
 
 // ═══════════════════════════════════════════════════════════════
 // Main component

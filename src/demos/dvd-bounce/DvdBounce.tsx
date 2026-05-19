@@ -13,13 +13,15 @@ import {
 
 const BG = bg(demoPalettes["dvd-bounce"]);
 
-const DVD_COLORS = [
+export const DVD_COLORS = [
   "#e24a4a", "#4a9ee2", "#e2c84a", "#4ae270",
   "#c84ae2", "#e2824a", "#4ae2d4",
 ];
 
-const BASE_LOGO_W = 180;
-const BASE_LOGO_H = 80; // matches the real DVD logo's ~2.27:1 aspect ratio
+export const DVD_BASE_LOGO_W = 180;
+export const DVD_BASE_LOGO_H = 80; // matches the real DVD logo's ~2.27:1 aspect ratio
+const BASE_LOGO_W = DVD_BASE_LOGO_W;
+const BASE_LOGO_H = DVD_BASE_LOGO_H;
 const CORNER_BURST_SCALE = 1.2; // temporary scale-up on corner celebration
 
 interface Particle {
@@ -107,7 +109,7 @@ interface DeformSpring {
   velocity: number;
 }
 
-function stepSpring(s: DeformSpring, target: number, stiffness: number, damping: number): void {
+export function dvdStepSpring(s: DeformSpring, target: number, stiffness: number, damping: number): void {
   const force = -stiffness * (s.value - target);
   const drag = -damping * s.velocity;
   s.velocity += (force + drag) / 60;
@@ -868,11 +870,11 @@ export function DvdBounce() {
       // Spring deformation (always run so draw has valid values)
       const stiffness = 300 + (1 - elasticity) * 400;
       const damping = 8 + (1 - elasticity) * 25;
-      stepSpring(s.deformX, 1, stiffness, damping);
-      stepSpring(s.deformY, 1, stiffness, damping);
+      dvdStepSpring(s.deformX, 1, stiffness, damping);
+      dvdStepSpring(s.deformY, 1, stiffness, damping);
 
       // Celebration burst spring — settles back to 1.0
-      stepSpring(s.burstScale, 1, 200, 18);
+      dvdStepSpring(s.burstScale, 1, 200, 18);
 
       const rawX = s.deformX.value;
       const rawY = s.deformY.value;
@@ -883,8 +885,8 @@ export function DvdBounce() {
       const finalScaleY = rawY * (1 - blend) + (rawY * correction) * blend;
 
       // Shake springs
-      stepSpring(s.shakeX, 0, 600, 30);
-      stepSpring(s.shakeY, 0, 600, 30);
+      dvdStepSpring(s.shakeX, 0, 600, 30);
+      dvdStepSpring(s.shakeY, 0, 600, 30);
 
       // Drain trail when paused (motion trail fades without motion)
       if (pausedRef.current && s.trailPositions.length > 0) {
