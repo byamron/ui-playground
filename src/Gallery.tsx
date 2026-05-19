@@ -86,6 +86,12 @@ const demos = [
     description: "Sparkline hints at the heatmap — bars shake-and-settle on expand",
     bg: bg(demoPalettes["github-sparkline"]),
   },
+  {
+    path: "/page-transition",
+    title: "Page Transition",
+    description: "Click → arrow winds up and flies off as the page fades, back arrow mirrors on return",
+    bg: bg(demoPalettes["page-transition"]),
+  },
 ];
 
 const galleryBg = bg({ hue: 220, mode: "dark", intensity: 0 });
