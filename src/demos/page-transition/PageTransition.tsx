@@ -418,11 +418,13 @@ interface ArrowProps {
 }
 
 function ArrowGlyph({ direction, sliding, hover, color }: ArrowProps) {
-  const animName = direction === "right" ? "ptArrowOutRight" : "ptArrowOutLeft";
-  const hoverNudge = hover ? (direction === "right" ? 3 : -3) : 0;
+  const slideAnim = direction === "right" ? "ptArrowOutRight" : "ptArrowOutLeft";
+  const rampAnim = direction === "right" ? "ptArrowJiggleRampRight" : "ptArrowJiggleRampLeft";
+  const fastAnim = direction === "right" ? "ptArrowJiggleFastRight" : "ptArrowJiggleFastLeft";
   return (
     <span
       aria-hidden="true"
+      className="pt-arrow"
       style={{
         display: "inline-block",
         fontSize: 18,
@@ -430,11 +432,13 @@ function ArrowGlyph({ direction, sliding, hover, color }: ArrowProps) {
         verticalAlign: "middle",
         color,
         lineHeight: 1,
-        transform: `translateX(${hoverNudge}px)`,
-        transition: "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)",
         ...(sliding
-          ? { animation: `${animName} ${ARROW_MS}ms cubic-bezier(0.22, 1, 0.36, 1) forwards` }
-          : {}),
+          ? { animation: `${slideAnim} ${ARROW_MS}ms cubic-bezier(0.22, 1, 0.36, 1) forwards` }
+          : hover
+            ? {
+                animation: `${rampAnim} 2800ms linear forwards, ${fastAnim} 160ms linear 2800ms infinite`,
+              }
+            : {}),
       }}
     >
       {direction === "right" ? "→" : "←"}
@@ -567,6 +571,58 @@ function Keyframes() {
   30%  { transform: translateX(5px);   opacity: 1; }
   100% { transform: translateX(-22px); opacity: 0; }
 }
+/* Ramp: oscillation period shortens and amplitude grows continuously
+   over ~2.8s. No distinct phases — frequency increases monotonically so
+   acceleration feels smooth, not staged. Ends at the fast-loop start
+   offset so the handoff is seamless. */
+@keyframes ptArrowJiggleRampRight {
+  0%   { transform: translateX(0); }
+  8%   { transform: translateX(-0.3px); }
+  18%  { transform: translateX(0.2px); }
+  28%  { transform: translateX(-0.45px); }
+  38%  { transform: translateX(0.3px); }
+  48%  { transform: translateX(-0.6px); }
+  57%  { transform: translateX(0.45px); }
+  65%  { transform: translateX(-0.8px); }
+  72%  { transform: translateX(0.6px); }
+  79%  { transform: translateX(-1px); }
+  85%  { transform: translateX(0.75px); }
+  90%  { transform: translateX(-1.2px); }
+  94%  { transform: translateX(0.9px); }
+  97%  { transform: translateX(-1.35px); }
+  100% { transform: translateX(-1.5px); }
+}
+@keyframes ptArrowJiggleRampLeft {
+  0%   { transform: translateX(0); }
+  8%   { transform: translateX(0.3px); }
+  18%  { transform: translateX(-0.2px); }
+  28%  { transform: translateX(0.45px); }
+  38%  { transform: translateX(-0.3px); }
+  48%  { transform: translateX(0.6px); }
+  57%  { transform: translateX(-0.45px); }
+  65%  { transform: translateX(0.8px); }
+  72%  { transform: translateX(-0.6px); }
+  79%  { transform: translateX(1px); }
+  85%  { transform: translateX(-0.75px); }
+  90%  { transform: translateX(1.2px); }
+  94%  { transform: translateX(-0.9px); }
+  97%  { transform: translateX(1.35px); }
+  100% { transform: translateX(1.5px); }
+}
+@keyframes ptArrowJiggleFastRight {
+  0%   { transform: translateX(-1.5px); }
+  25%  { transform: translateX(1.2px); }
+  50%  { transform: translateX(-1.5px); }
+  75%  { transform: translateX(1px); }
+  100% { transform: translateX(-1.5px); }
+}
+@keyframes ptArrowJiggleFastLeft {
+  0%   { transform: translateX(1.5px); }
+  25%  { transform: translateX(-1.2px); }
+  50%  { transform: translateX(1.5px); }
+  75%  { transform: translateX(-1px); }
+  100% { transform: translateX(1.5px); }
+}
 @keyframes ptBackEnter {
   0%   { transform: translateX(-12px); opacity: 0; }
   100% { transform: translateX(0);     opacity: 1; }
@@ -608,6 +664,7 @@ function Keyframes() {
 @media (prefers-reduced-motion: reduce) {
   .pt-card__title::after, .pt-back__label::after { transition: none; }
   .pt-back { animation: none; }
+  .pt-arrow { animation: none !important; }
 }
 `;
     document.head.appendChild(style);
