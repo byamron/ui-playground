@@ -1,5 +1,6 @@
 import { useState, useRef, useLayoutEffect, useEffect, useCallback } from "react";
 import {
+  AnimatePresence,
   motion,
   useMotionValue,
   useMotionTemplate,
@@ -33,6 +34,13 @@ const ROUNDED_CARD = 32;
 const MOVE_THRESHOLD = 4; // px of motion before a press becomes a commit
 const HOLD_DELAY = 200; // ms before a press commits to "picker mode"
 const RING_OFFSET = 3.5;
+
+// Brush trail thresholds — emit a fading color ghost behind the handle when
+// the user is dragging fast. Speed is measured in px/s on the smoothed
+// velocity signal; throttled so we never emit more than once per frame-pair.
+const TRAIL_SPEED_THRESHOLD = 700;
+const TRAIL_EMIT_INTERVAL_MS = 50;
+const TRAIL_LIFE_MS = 320;
 
 // ── Theme tokens ──────────────────────────────────────────────────────────
 
@@ -397,8 +405,13 @@ export function ColorHoldPick() {
   const revealCY = useMotionValue(0);
   const revealMask = useMotionTemplate`radial-gradient(circle ${revealR}px at ${revealCX}px ${revealCY}px, rgba(0,0,0,1) 45%, rgba(0,0,0,0) 100%)`;
 
-  // Phone-surface commit pulse — tiny scale beat on release-with-drag.
-  const phoneScale = useMotionValue(1);
+  // Commit bloom — soft radial light pulse on the phone surface where the
+  // handle lands at release-with-drag. Reads as "the surface received the
+  // color." Position is in phone-surface coordinates.
+  const bloomCX = useMotionValue(0);
+  const bloomCY = useMotionValue(0);
+  const bloomOpacity = useMotionValue(0);
+  const bloomBg = useMotionTemplate`radial-gradient(circle 220px at ${bloomCX}px ${bloomCY}px, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.18) 38%, rgba(255,255,255,0) 72%)`;
 
   // Velocity-aware brush shadow.
   const pickingMV = useMotionValue(0);
@@ -436,6 +449,22 @@ export function ColorHoldPick() {
   // without being held long enough to enter picker mode. Visibly spins the
   // conic gradient for a beat, inviting the user to hold instead of tap.
   const jiggleRotate = useMotionValue(0);
+
+  // Brush trail — fading color ghosts emitted behind the handle during fast
+  // drags. Throttled by TRAIL_EMIT_INTERVAL_MS and gated on smoothSpeed.
+  type TrailNode = { id: number; x: number; y: number; color: string };
+  const [trail, setTrail] = useState<TrailNode[]>([]);
+  const lastTrailEmitRef = useRef(0);
+  const trailIdRef = useRef(0);
+  const trailTimersRef = useRef<Set<number>>(new Set());
+
+  // Clean up any in-flight trail removal timers on unmount.
+  useEffect(() => {
+    return () => {
+      trailTimersRef.current.forEach((t) => window.clearTimeout(t));
+      trailTimersRef.current.clear();
+    };
+  }, []);
 
   // Card offset within the phone surface.
   const cardOffsetRef = useRef({ x: 0, y: 0 });
@@ -544,11 +573,35 @@ export function ColorHoldPick() {
         }
         const cx = Math.max(0, Math.min(card.width, ev.clientX - card.left));
         const cy = Math.max(0, Math.min(card.height, ev.clientY - card.top));
-        x.set(cx + cardOffsetRef.current.x - SWATCH_R);
-        y.set(cy + cardOffsetRef.current.y - SWATCH_R);
-        setAppColor(
-          colorFromPos(cx, cy, card.width, card.height, tokensRef.current)
+        const hx = cx + cardOffsetRef.current.x - SWATCH_R;
+        const hy = cy + cardOffsetRef.current.y - SWATCH_R;
+        x.set(hx);
+        y.set(hy);
+        const sampled = colorFromPos(
+          cx,
+          cy,
+          card.width,
+          card.height,
+          tokensRef.current
         );
+        setAppColor(sampled);
+
+        // Emit a fading brush ghost on fast drags. Throttled so we don't
+        // flood state during a single sweep.
+        const tNow = performance.now();
+        if (
+          smoothSpeed.get() > TRAIL_SPEED_THRESHOLD &&
+          tNow - lastTrailEmitRef.current > TRAIL_EMIT_INTERVAL_MS
+        ) {
+          lastTrailEmitRef.current = tNow;
+          const id = ++trailIdRef.current;
+          setTrail((arr) => [...arr, { id, x: hx, y: hy, color: sampled }]);
+          const timer = window.setTimeout(() => {
+            trailTimersRef.current.delete(timer);
+            setTrail((arr) => arr.filter((g) => g.id !== id));
+          }, TRAIL_LIFE_MS);
+          trailTimersRef.current.add(timer);
+        }
       };
 
       const onUp = () => {
@@ -573,9 +626,13 @@ export function ColorHoldPick() {
           setAppColor(prevStateRef.current.color);
           setSelected(prevStateRef.current.selected);
         } else {
-          fmAnimate(phoneScale, [1, 1.005, 1], {
-            duration: 0.22,
-            times: [0, 0.45, 1],
+          // Commit bloom — radial light pulse on the phone surface, centered
+          // on the handle's landing position. Reads as "surface received it."
+          bloomCX.set(x.get() + SWATCH_R);
+          bloomCY.set(y.get() + SWATCH_R);
+          fmAnimate(bloomOpacity, [0, 1, 0], {
+            duration: 0.5,
+            times: [0, 0.3, 1],
             ease: [0.2, 0, 0, 1],
           });
         }
@@ -599,7 +656,20 @@ export function ColorHoldPick() {
       activeGestureRef.current.onMove = onMove;
       activeGestureRef.current.onUp = onUp;
     },
-    [x, y, appColor, selected, revealR, revealCX, revealCY, phoneScale, jiggleRotate]
+    [
+      x,
+      y,
+      appColor,
+      selected,
+      revealR,
+      revealCX,
+      revealCY,
+      bloomCX,
+      bloomCY,
+      bloomOpacity,
+      jiggleRotate,
+      smoothSpeed,
+    ]
   );
 
   // Toggle appearance — swap selected preset to its counterpart in the new
@@ -645,7 +715,6 @@ export function ColorHoldPick() {
           userSelect: "none",
           touchAction: "none",
           transition: picking ? "none" : "background 0.25s ease",
-          scale: phoneScale,
         }}
       >
         <StatusBar tint={tokens.statusTint} />
@@ -873,6 +942,31 @@ export function ColorHoldPick() {
           }}
         />
 
+        {/* Brush trail — fading color ghosts during fast drags */}
+        <AnimatePresence>
+          {trail.map((node) => (
+            <motion.div
+              key={node.id}
+              initial={{ opacity: 0.55, scale: 1 }}
+              animate={{ opacity: 0, scale: 0.82 }}
+              transition={{ duration: TRAIL_LIFE_MS / 1000, ease: [0.2, 0, 0, 1] }}
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                x: node.x,
+                y: node.y,
+                width: SWATCH,
+                height: SWATCH,
+                borderRadius: swatchRadius,
+                background: node.color,
+                pointerEvents: "none",
+                zIndex: 4,
+              }}
+            />
+          ))}
+        </AnimatePresence>
+
         {/* Rainbow handle */}
         <motion.div
           onPointerDown={startPick}
@@ -923,6 +1017,18 @@ export function ColorHoldPick() {
             }}
           />
         </motion.div>
+
+        {/* Commit bloom — soft radial light pulse on release-with-drag */}
+        <motion.div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: bloomBg,
+            opacity: bloomOpacity,
+            pointerEvents: "none",
+            zIndex: 6,
+          }}
+        />
       </motion.div>
     </div>
   );
