@@ -18,7 +18,7 @@ Inventory of every demo in the repo and its ship status.
 | Fisheye Text | `/fisheye-text` | In progress |
 | Frame Guide | `/frame-guide` | In progress |
 | GitHub Sparkline | `/github-sparkline` | In progress |
-| Glass Pull | `/glass-pull` | In progress |
+| Glass Pull | `/glass-pull` | Ready |
 | Magnetic Button | `/magnetic-button` | In progress |
 | Page Transition | `/page-transition` | In progress |
 | Slide to Unlock | `/slide-unlock` | In progress |
