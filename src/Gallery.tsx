@@ -81,6 +81,12 @@ const demos = [
     bg: bg(demoPalettes["companion-zoo"]),
   },
   {
+    path: "/color-hold-pick",
+    title: "Color Hold Pick",
+    description: "Press and hold the rainbow swatch — the card becomes an HSB canvas",
+    bg: bg(demoPalettes["color-hold-pick"]),
+  },
+  {
     path: "/github-sparkline",
     title: "GitHub Sparkline",
     description: "Sparkline hints at the heatmap — bars shake-and-settle on expand",
