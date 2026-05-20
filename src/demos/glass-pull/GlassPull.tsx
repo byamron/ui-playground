@@ -36,7 +36,7 @@ const DEFAULTS = {
   entranceScale: 0.75,
   glassPressure: 0.03,
   highlightIntensity: 0.10,
-  cursorLight: 0.03,
+  cursorLight: 0.02,
 };
 
 // Static config (not tunable)
