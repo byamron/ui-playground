@@ -100,10 +100,18 @@ function stepSpring(s: SpringState, dt: number, k: number, c: number): boolean {
 // Imperative glass highlight system
 // ═══════════════════════════════════════════════════════════════
 
+interface GlassHighlightAPI {
+  cleanup: () => void;
+  // Force a single repaint with the current configRef values. Used when
+  // something the loop wouldn't otherwise notice has changed (e.g. mode
+  // toggled while the pill was settled).
+  redraw: () => void;
+}
+
 function setupGlassHighlight(
   container: HTMLElement,
   configRef: React.MutableRefObject<TunableConfig>,
-): () => void {
+): GlassHighlightAPI {
   let pill: HTMLDivElement | null = null;
   let currentCard: HTMLElement | null = null;
   let rafId: number | null = null;
@@ -475,18 +483,32 @@ function setupGlassHighlight(
     }
   }
 
-  function isCursorInCardStack(clientY: number): boolean {
+  // True if the cursor is near any card's bounding rect (with a small margin
+  // to bridge the visual gap between adjacent cards). Replaces the older
+  // column-Y-only check, which falsely returned true for the horizontal dead
+  // space that appears next to short, hug-text pills.
+  const CARD_PROXIMITY_MARGIN = 8;
+  function isCursorNearAnyCard(clientX: number, clientY: number): boolean {
     const cards = container.querySelectorAll<HTMLElement>("[data-link-card]");
-    if (cards.length === 0) return false;
-    const firstRect = cards[0]!.getBoundingClientRect();
-    const lastRect = cards[cards.length - 1]!.getBoundingClientRect();
-    return clientY >= firstRect.top && clientY <= lastRect.bottom;
+    const m = CARD_PROXIMITY_MARGIN;
+    for (const card of cards) {
+      const r = card.getBoundingClientRect();
+      if (
+        clientX >= r.left - m &&
+        clientX <= r.right + m &&
+        clientY >= r.top - m &&
+        clientY <= r.bottom + m
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
 
   function handleMouseOver(e: MouseEvent) {
     const card = (e.target as HTMLElement).closest<HTMLElement>("[data-link-card]");
     if (!card) {
-      if (currentCard && !isCursorInCardStack(e.clientY)) {
+      if (currentCard && !isCursorNearAnyCard(e.clientX, e.clientY)) {
         if (!clearTimer) {
           clearTimer = setTimeout(() => {
             clearTimer = null;
@@ -593,15 +615,28 @@ function setupGlassHighlight(
   container.addEventListener("mouseleave", handleMouseLeave);
   container.addEventListener("mousemove", handleMouseMove, { passive: true });
 
-  return () => {
-    releaseCardLean();
-    setActiveText(null);
-    stopLoop();
-    container.removeEventListener("mouseover", handleMouseOver);
-    container.removeEventListener("mouseleave", handleMouseLeave);
-    container.removeEventListener("mousemove", handleMouseMove);
-    pill?.remove();
-    if (clearTimer) clearTimeout(clearTimer);
+  return {
+    cleanup: () => {
+      releaseCardLean();
+      setActiveText(null);
+      stopLoop();
+      container.removeEventListener("mouseover", handleMouseOver);
+      container.removeEventListener("mouseleave", handleMouseLeave);
+      container.removeEventListener("mousemove", handleMouseMove);
+      pill?.remove();
+      if (clearTimer) clearTimeout(clearTimer);
+    },
+    redraw: () => {
+      // Border isn't recomputed per frame — restamp it now so it never lags.
+      applyMode(configRef.current.mode);
+      // If a card is hovered, schedule one loop tick so background/box-shadow
+      // pick up the current config. Reset lastTime so the spring step doesn't
+      // see a huge dt after a long idle.
+      if (currentCard && pill) {
+        state.lastTime = 0;
+        startLoop();
+      }
+    },
   };
 }
 
@@ -644,11 +679,24 @@ export function GlassPull() {
 
   // Mode changes are picked up imperatively (applyMode + per-frame styles)
   // so the system never has to remount mid-hover.
+  const apiRef = useRef<ReturnType<typeof setupGlassHighlight> | null>(null);
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    return setupGlassHighlight(container, configRef);
+    const api = setupGlassHighlight(container, configRef);
+    apiRef.current = api;
+    return () => {
+      apiRef.current = null;
+      api.cleanup();
+    };
   }, []);
+
+  // Nudge a one-shot repaint when mode toggles. The loop only runs while
+  // animating, so without this the pill would visually lag the toggle if the
+  // user wasn't moving the cursor (e.g. keyboard activation).
+  useEffect(() => {
+    apiRef.current?.redraw();
+  }, [mode]);
 
   const palette = mode === "dark" ? text.dark : text.light;
 
