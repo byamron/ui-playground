@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
-import { bg, demoPalettes, text } from "../../palette";
-import { DevPanel, DevSlider, DevDivider } from "../../components/DevPanel";
+import { HUES, bg, text } from "../../palette";
+import { DevPanel, DevSlider, DevButtonGroup, DevButton } from "../../components/DevPanel";
 
 /**
  * Glass Pull — ported from portfolio's useGlassHighlight hook.
@@ -18,14 +18,19 @@ const ITEMS = [
   "Docs",
 ];
 
-const BG_COLOR = bg(demoPalettes["glass-pull"]);
+type Mode = "dark" | "light";
+
+const BG_COLORS: Record<Mode, string> = {
+  dark: bg({ hue: HUES.violet, mode: "dark", intensity: 1 }),
+  light: bg({ hue: HUES.violet, mode: "light", intensity: 0 }),
+};
 
 // Defaults — these become the DevPanel's starting values
 const DEFAULTS = {
   springStiffness: 280,
   springDamping: 23,
   pillMaxLean: 1.5,
-  pillMaxTilt: 1.3,
+  pillMaxTilt: 2.2,
   cardMaxLean: 0.8,
   stretchAmount: 0.02,
   entranceScale: 0.75,
@@ -37,7 +42,7 @@ const DEFAULTS = {
 // Static config (not tunable)
 const STATIC = {
   surfaceBlur: 1,
-  borderRadius: 10,
+  borderRadius: 14,
   fadeDuration: 200,
   squashAmount: 0.004,
   pullStrength: 0.25,
@@ -62,6 +67,7 @@ interface TunableConfig {
   glassPressure: number;
   highlightIntensity: number;
   cursorLight: number;
+  mode: Mode;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -94,10 +100,18 @@ function stepSpring(s: SpringState, dt: number, k: number, c: number): boolean {
 // Imperative glass highlight system
 // ═══════════════════════════════════════════════════════════════
 
+interface GlassHighlightAPI {
+  cleanup: () => void;
+  // Force a single repaint with the current configRef values. Used when
+  // something the loop wouldn't otherwise notice has changed (e.g. mode
+  // toggled while the pill was settled).
+  redraw: () => void;
+}
+
 function setupGlassHighlight(
   container: HTMLElement,
   configRef: React.MutableRefObject<TunableConfig>,
-): () => void {
+): GlassHighlightAPI {
   let pill: HTMLDivElement | null = null;
   let currentCard: HTMLElement | null = null;
   let rafId: number | null = null;
@@ -167,21 +181,30 @@ function setupGlassHighlight(
       pointerEvents: "none",
       zIndex: "10",
       opacity: "0",
-      willChange: "transform, opacity",
+      willChange: "transform, opacity, box-shadow, background",
       contain: "layout style",
       top: "0",
       left: "0",
       borderRadius: `${STATIC.borderRadius}px`,
-      background: `hsla(${hue}, 20%, 55%, 0.12)`,
       backdropFilter: `blur(${STATIC.surfaceBlur}px)`,
       WebkitBackdropFilter: `blur(${STATIC.surfaceBlur}px)`,
-      boxShadow: "inset 0 1px 0 0 rgba(255, 255, 255, 0.10)",
-      border: "0.5px solid rgba(255, 255, 255, 0.12)",
       transition: `opacity ${STATIC.fadeDuration}ms ease`,
     });
 
     container.insertBefore(div, container.firstChild);
     return div;
+  }
+
+  // Border is the only style that doesn't refresh every frame. Track mode and
+  // restamp the border whenever it changes so toggling Dark/Light never needs
+  // a full remount.
+  let appliedMode: Mode | null = null;
+  function applyMode(m: Mode) {
+    if (!pill || appliedMode === m) return;
+    appliedMode = m;
+    pill.style.border = m === "dark"
+      ? "0.5px solid rgba(255, 255, 255, 0.12)"
+      : "0.5px solid rgba(0, 0, 0, 0.06)";
   }
 
   function getCardPosition(card: HTMLElement) {
@@ -327,7 +350,13 @@ function setupGlassHighlight(
     }
 
     const { sx, sy } = getVelocityStretch();
-    const baseOpacity = 0.12;
+    const isDark = cfg.mode === "dark";
+    applyMode(cfg.mode);
+
+    // Light mode is darker translucent glass on a light bg — the body
+    // is the primary signal, so it needs more presence than the dark-mode
+    // version (where the light tint already pops against dark).
+    const baseOpacity = isDark ? 0.12 : 0.22;
 
     const w = springs.w.value;
     const h = springs.h.value;
@@ -376,10 +405,40 @@ function setupGlassHighlight(
 
     // Compose: cursor radial gradient + glass fill (with pressure)
     const fillOpacity = (baseOpacity + glassPressure).toFixed(3);
-    pill.style.background = `radial-gradient(ellipse 130% 130% at ${hlPctX}% ${hlPctY}%, rgba(255,255,255,${clIntensity.toFixed(3)}), rgba(255,255,255,${(clIntensity * 0.1).toFixed(3)}) 55%, transparent 100%), hsla(${hue}, 20%, 55%, ${fillOpacity})`;
+    const fillHsla = isDark
+      ? `hsla(${hue}, 20%, 55%, ${fillOpacity})`
+      : `hsla(${hue}, 40%, 28%, ${fillOpacity})`;
+    // Anchor cursor light radius to pill height so it stays circular and
+    // focused regardless of pill width.
+    const cursorRadius = (h * 1.1).toFixed(1);
+    // In light mode the cursor highlight reads as gentle through-glass
+    // brightening rather than a hard specular — pulled down since there's
+    // little brightness headroom against a light background.
+    const cursorWhiteMul = isDark ? 1 : 0.35;
+    const clInner = (clIntensity * cursorWhiteMul).toFixed(3);
+    const clOuter = (clIntensity * 0.1 * cursorWhiteMul).toFixed(3);
+    pill.style.background = `radial-gradient(circle ${cursorRadius}px at ${hlPctX}% ${hlPctY}%, rgba(255,255,255,${clInner}), rgba(255,255,255,${clOuter}) 55%, transparent 100%), ${fillHsla}`;
 
-    // Edge catch shifts with cursor + subtle bottom shadow for depth
-    pill.style.boxShadow = `inset ${shadowX.toFixed(2)}px ${shadowY.toFixed(2)}px 0 0 rgba(255,255,255,${edgeIntensity.toFixed(3)}), inset 0 -0.5px 0 0 rgba(0,0,0,0.06)`;
+    // Box shadow stack, mode-aware:
+    //   1. Cursor-tracking inset white catch (specular, attenuated in light)
+    //   2. Thin top sheen (light catching the top edge of the glass)
+    //   3. Bottom inset darkening (depth at base)
+    //   4. Light-mode only: dark rim (refraction at glass edge — Fresnel-ish)
+    //   5. Light-mode only: soft outset cast shadow (grounds the pill)
+    const specularMul = isDark ? 1 : 0.30;
+    const specularAlpha = (edgeIntensity * specularMul).toFixed(3);
+    const topSheen = isDark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.32)";
+    const bottomInsetAlpha = isDark ? 0.06 : 0.05;
+    const parts = [
+      `inset ${shadowX.toFixed(2)}px ${shadowY.toFixed(2)}px 0 0 rgba(255,255,255,${specularAlpha})`,
+      `inset 0 1px 0 0 ${topSheen}`,
+      `inset 0 -0.5px 0 0 rgba(0,0,0,${bottomInsetAlpha})`,
+    ];
+    if (!isDark) {
+      parts.push("inset 0 0 0 1px rgba(0,0,0,0.04)");
+      parts.push(`0 6px 16px hsla(${hue}, 40%, 25%, 0.10)`);
+    }
+    pill.style.boxShadow = parts.join(", ");
 
     // ── Card text lean ──
     if (leanedCard && mouseActive) {
@@ -424,18 +483,32 @@ function setupGlassHighlight(
     }
   }
 
-  function isCursorInCardStack(clientY: number): boolean {
+  // True if the cursor is near any card's bounding rect (with a small margin
+  // to bridge the visual gap between adjacent cards). Replaces the older
+  // column-Y-only check, which falsely returned true for the horizontal dead
+  // space that appears next to short, hug-text pills.
+  const CARD_PROXIMITY_MARGIN = 8;
+  function isCursorNearAnyCard(clientX: number, clientY: number): boolean {
     const cards = container.querySelectorAll<HTMLElement>("[data-link-card]");
-    if (cards.length === 0) return false;
-    const firstRect = cards[0]!.getBoundingClientRect();
-    const lastRect = cards[cards.length - 1]!.getBoundingClientRect();
-    return clientY >= firstRect.top && clientY <= lastRect.bottom;
+    const m = CARD_PROXIMITY_MARGIN;
+    for (const card of cards) {
+      const r = card.getBoundingClientRect();
+      if (
+        clientX >= r.left - m &&
+        clientX <= r.right + m &&
+        clientY >= r.top - m &&
+        clientY <= r.bottom + m
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
 
   function handleMouseOver(e: MouseEvent) {
     const card = (e.target as HTMLElement).closest<HTMLElement>("[data-link-card]");
     if (!card) {
-      if (currentCard && !isCursorInCardStack(e.clientY)) {
+      if (currentCard && !isCursorNearAnyCard(e.clientX, e.clientY)) {
         if (!clearTimer) {
           clearTimer = setTimeout(() => {
             clearTimer = null;
@@ -537,19 +610,33 @@ function setupGlassHighlight(
   }
 
   pill = createPill();
+  applyMode(configRef.current.mode);
   container.addEventListener("mouseover", handleMouseOver);
   container.addEventListener("mouseleave", handleMouseLeave);
   container.addEventListener("mousemove", handleMouseMove, { passive: true });
 
-  return () => {
-    releaseCardLean();
-    setActiveText(null);
-    stopLoop();
-    container.removeEventListener("mouseover", handleMouseOver);
-    container.removeEventListener("mouseleave", handleMouseLeave);
-    container.removeEventListener("mousemove", handleMouseMove);
-    pill?.remove();
-    if (clearTimer) clearTimeout(clearTimer);
+  return {
+    cleanup: () => {
+      releaseCardLean();
+      setActiveText(null);
+      stopLoop();
+      container.removeEventListener("mouseover", handleMouseOver);
+      container.removeEventListener("mouseleave", handleMouseLeave);
+      container.removeEventListener("mousemove", handleMouseMove);
+      pill?.remove();
+      if (clearTimer) clearTimeout(clearTimer);
+    },
+    redraw: () => {
+      // Border isn't recomputed per frame — restamp it now so it never lags.
+      applyMode(configRef.current.mode);
+      // If a card is hovered, schedule one loop tick so background/box-shadow
+      // pick up the current config. Reset lastTime so the spring step doesn't
+      // see a huge dt after a long idle.
+      if (currentCard && pill) {
+        state.lastTime = 0;
+        startLoop();
+      }
+    },
   };
 }
 
@@ -561,6 +648,7 @@ export function GlassPull() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Tunable state — DevPanel drives these, ref passes them into the imperative loop
+  const [mode, setMode] = useState<Mode>("dark");
   const [stiffness, setStiffness] = useState(DEFAULTS.springStiffness);
   const [damping, setDamping] = useState(DEFAULTS.springDamping);
   const [lean, setLean] = useState(DEFAULTS.pillMaxLean);
@@ -574,7 +662,7 @@ export function GlassPull() {
 
   const configRef = useRef<TunableConfig>({} as TunableConfig);
 
-  // Keep ref in sync with state (no re-mount needed)
+  // Keep ref in sync with state (no re-mount needed for slider tweaks)
   configRef.current = {
     springStiffness: stiffness,
     springDamping: damping,
@@ -586,34 +674,73 @@ export function GlassPull() {
     glassPressure: pressure,
     highlightIntensity: highlight,
     cursorLight,
+    mode,
   };
 
+  // Mode changes are picked up imperatively (applyMode + per-frame styles)
+  // so the system never has to remount mid-hover.
+  const apiRef = useRef<ReturnType<typeof setupGlassHighlight> | null>(null);
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    return setupGlassHighlight(container, configRef);
+    const api = setupGlassHighlight(container, configRef);
+    apiRef.current = api;
+    return () => {
+      apiRef.current = null;
+      api.cleanup();
+    };
   }, []);
+
+  // Nudge a one-shot repaint when mode toggles. The loop only runs while
+  // animating, so without this the pill would visually lag the toggle if the
+  // user wasn't moving the cursor (e.g. keyboard activation).
+  useEffect(() => {
+    apiRef.current?.redraw();
+  }, [mode]);
+
+  const palette = mode === "dark" ? text.dark : text.light;
 
   return (
     <DevPanel
       label="Glass Pull"
-      background={BG_COLOR}
+      background={BG_COLORS[mode]}
       defaultOpen={false}
       controls={
         <>
+          <DevButtonGroup
+            label="Mode"
+            value={mode}
+            onChange={setMode}
+            options={[
+              { label: "Dark", value: "dark" },
+              { label: "Light", value: "light" },
+            ]}
+          />
           <DevSlider label="Stiffness" value={stiffness} onChange={setStiffness} min={100} max={600} step={10} />
           <DevSlider label="Damping" value={damping} onChange={setDamping} min={8} max={50} step={1} />
-          <DevDivider />
           <DevSlider label="Pill lean" value={lean} onChange={setLean} min={0} max={8} step={0.5} />
           <DevSlider label="Pill tilt" value={tilt} onChange={setTilt} min={0} max={3} step={0.1} />
           <DevSlider label="Card lean" value={cardLean} onChange={setCardLean} min={0} max={6} step={0.2} />
-          <DevDivider />
           <DevSlider label="Stretch" value={stretch} onChange={setStretch} min={0} max={0.15} step={0.005} />
           <DevSlider label="Entrance scale" value={entrance} onChange={setEntrance} min={0.7} max={1.0} step={0.01} />
-          <DevDivider />
           <DevSlider label="Glass pressure" value={pressure} onChange={setPressure} min={0} max={0.12} step={0.005} />
           <DevSlider label="Edge highlight" value={highlight} onChange={setHighlight} min={0} max={0.15} step={0.005} />
           <DevSlider label="Cursor light" value={cursorLight} onChange={setCursorLight} min={0} max={0.20} step={0.005} />
+          <DevButton
+            label="Reset"
+            onClick={() => {
+              setStiffness(DEFAULTS.springStiffness);
+              setDamping(DEFAULTS.springDamping);
+              setLean(DEFAULTS.pillMaxLean);
+              setTilt(DEFAULTS.pillMaxTilt);
+              setCardLean(DEFAULTS.cardMaxLean);
+              setStretch(DEFAULTS.stretchAmount);
+              setEntrance(DEFAULTS.entranceScale);
+              setPressure(DEFAULTS.glassPressure);
+              setHighlight(DEFAULTS.highlightIntensity);
+              setCursorLight(DEFAULTS.cursorLight);
+            }}
+          />
         </>
       }
     >
@@ -622,21 +749,24 @@ export function GlassPull() {
           position: relative;
           display: flex;
           flex-direction: column;
-          gap: 6px;
+          align-items: flex-start;
+          gap: 8px;
         }
         .glass-item {
-          padding: 16px 24px;
-          font-size: 17px;
-          color: ${text.dark.tertiary};
+          padding: 18px 32px;
+          font-size: 24px;
+          letter-spacing: -0.01em;
+          color: ${palette.tertiary};
           cursor: default;
           position: relative;
           z-index: 1;
           transition: color 0.2s ease;
           user-select: none;
-          border-radius: 10px;
+          border-radius: 14px;
+          width: fit-content;
         }
         .glass-item[data-active="true"] {
-          color: ${text.dark.primary};
+          color: ${palette.primary};
         }
       `}</style>
 

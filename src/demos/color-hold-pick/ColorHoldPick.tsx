@@ -796,14 +796,14 @@ export function ColorHoldPick() {
           userSelect: "none",
           touchAction: "none",
           transition: picking ? "none" : "background 0.25s ease",
-          // Wrapper extends behind safe areas (100lvh) so the picked color
-          // tints status bar + URL bar / home indicator. Top is padded by
-          // safe-area-inset-top so the card sits below the iOS status bar.
-          // Bottom has NO padding — card extends to 16px from physical
-          // screen edge for a consistent margin matching the sides. In PWA
-          // the thin home-indicator bar overlays just the 16px margin. In
-          // Safari the URL bar will cover the bottom of the card; use PWA
-          // (Add to Home Screen) for the polished experience.
+          // Wrapper extends behind safe areas via body's 100vw/100vh so the
+          // picked color tints status bar + URL bar / home indicator. Top
+          // is padded by safe-area-inset-top so the card sits below the iOS
+          // status bar. Bottom has NO padding — card extends to 16px from
+          // physical screen edge for a consistent margin matching the
+          // sides. In PWA the thin home-indicator bar overlays just the
+          // 16px margin. In Safari the URL bar will cover the bottom of
+          // the card; use PWA (Add to Home Screen) for the polished view.
           paddingTop: isMobile ? "env(safe-area-inset-top)" : 0,
         }}
       >
