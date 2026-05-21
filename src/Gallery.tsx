@@ -21,6 +21,7 @@ const STORAGE_ARCADE_REFILL = "ui-playground:arcade-refill";
 const STORAGE_ARCADE_HUE_SOURCE = "ui-playground:arcade-hue-source";
 const STORAGE_ARCADE_FONT = "ui-playground:arcade-font";
 const STORAGE_ARCADE_APPEARANCE = "ui-playground:arcade-appearance";
+const STORAGE_ARCADE_THEME_CONTROLS = "ui-playground:arcade-theme-controls";
 
 // The shared appearance + accent vocabulary — same shape as the portfolio's
 // theme tokens. Museum has used these from day one; arcade now consumes
@@ -38,6 +39,7 @@ type ArcadeFont =
   | "ibm-plex-mono"
   | "onest";
 type ArcadeAppearance = "dark" | "light";
+type ArcadeThemeControls = "marquee" | "footer";
 
 // Numeric hue per accent (matches arcade-themes.css / tokens.md / portfolio).
 const ACCENT_HUES: Record<Accent, number> = {
@@ -127,6 +129,13 @@ function readArcadeAppearance(): ArcadeAppearance {
   return "dark";
 }
 
+function readArcadeThemeControls(): ArcadeThemeControls {
+  if (typeof window === "undefined") return "footer";
+  const stored = window.localStorage.getItem(STORAGE_ARCADE_THEME_CONTROLS);
+  if (stored === "marquee" || stored === "footer") return stored;
+  return "footer";
+}
+
 
 export function Gallery() {
   const [mode, setMode] = useState<GalleryMode>(readMode);
@@ -143,6 +152,8 @@ export function Gallery() {
   const [arcadeAppearance, setArcadeAppearance] = useState<ArcadeAppearance>(
     readArcadeAppearance,
   );
+  const [arcadeThemeControls, setArcadeThemeControls] =
+    useState<ArcadeThemeControls>(readArcadeThemeControls);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_MODE, mode);
@@ -171,6 +182,12 @@ export function Gallery() {
   useEffect(() => {
     window.localStorage.setItem(STORAGE_ARCADE_APPEARANCE, arcadeAppearance);
   }, [arcadeAppearance]);
+  useEffect(() => {
+    window.localStorage.setItem(
+      STORAGE_ARCADE_THEME_CONTROLS,
+      arcadeThemeControls,
+    );
+  }, [arcadeThemeControls]);
 
   return (
     <DevPanel
@@ -258,6 +275,15 @@ export function Gallery() {
                   { label: "Light", value: "light" },
                 ]}
               />
+              <DevButtonGroup<ArcadeThemeControls>
+                label="Theme UI"
+                value={arcadeThemeControls}
+                onChange={setArcadeThemeControls}
+                options={[
+                  { label: "Marquee", value: "marquee" },
+                  { label: "Footer", value: "footer" },
+                ]}
+              />
               <DevButtonGroup<ArcadeCoinInsert>
                 label="Insert"
                 value={coinInsert}
@@ -303,6 +329,9 @@ export function Gallery() {
           hueSource={hueSource}
           font={arcadeFont}
           appearance={arcadeAppearance}
+          themeControls={arcadeThemeControls}
+          onAccentChange={setAccent}
+          onAppearanceChange={setArcadeAppearance}
         />
       )}
       {mode === "curious" && <CuriousGallery />}

@@ -102,6 +102,15 @@ export type ArcadeFont =
   | "jetbrains-mono"
   | "ibm-plex-mono"
   | "onest";
+export type ArcadeThemeControlsPlacement = "marquee" | "footer";
+
+const ALL_ACCENTS: { name: AccentName; hue: number }[] = [
+  { name: "table", hue: 34 },
+  { name: "portrait", hue: 43 },
+  { name: "sky", hue: 204 },
+  { name: "pizza", hue: 15 },
+  { name: "vineyard", hue: 90 },
+];
 
 // Per-cabinet hue offsets from the accent. 16 entries, all within ±90°,
 // mixed analogous (small offsets) + slightly stretched (larger) so the
@@ -136,6 +145,9 @@ export function ArcadeGallery({
   hueSource,
   font,
   appearance,
+  themeControls,
+  onAccentChange,
+  onAppearanceChange,
 }: {
   audio: boolean;
   coinInsert: CoinInsertVariant;
@@ -145,6 +157,9 @@ export function ArcadeGallery({
   hueSource: HueSource;
   font: ArcadeFont;
   appearance: "dark" | "light";
+  themeControls: ArcadeThemeControlsPlacement;
+  onAccentChange: (accent: AccentName) => void;
+  onAppearanceChange: (appearance: "dark" | "light") => void;
 }) {
   // Per-cabinet state, keyed by demo path
   const [states, setStates] = useState<Record<string, CabinetState>>(() =>
@@ -505,7 +520,17 @@ export function ArcadeGallery({
       <ScreenOverlay />
 
       <div style={{ position: "relative", padding: "0 32px 96px" }}>
-        <Marquee />
+        <Marquee>
+          {themeControls === "marquee" && (
+            <ThemeControls
+              accent={accent}
+              appearance={appearance}
+              onAccentChange={onAccentChange}
+              onAppearanceChange={onAppearanceChange}
+              variant="marquee"
+            />
+          )}
+        </Marquee>
         <div
           style={{
             maxWidth: 1280,
@@ -527,7 +552,17 @@ export function ArcadeGallery({
             />
           ))}
         </div>
-        <Footer />
+        <Footer>
+          {themeControls === "footer" && (
+            <ThemeControls
+              accent={accent}
+              appearance={appearance}
+              onAccentChange={onAccentChange}
+              onAppearanceChange={onAppearanceChange}
+              variant="footer"
+            />
+          )}
+        </Footer>
       </div>
 
       <CoinBag
@@ -1936,7 +1971,7 @@ function ScreenOverlay() {
   );
 }
 
-function Marquee() {
+function Marquee({ children }: { children?: React.ReactNode }) {
   const tag = "★ UI PLAYGROUND ★ INSERT COIN TO PLAY ★ ";
   const longTag = tag.repeat(8);
   return (
@@ -1951,11 +1986,29 @@ function Marquee() {
         borderTop: "1px solid var(--arcade-marquee-border)",
         borderBottom: "1px solid var(--arcade-marquee-border)",
         overflow: "hidden",
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
       }}
     >
+      {children && (
+        <div
+          style={{
+            flex: "0 0 auto",
+            padding: "0 16px 0 24px",
+            zIndex: 1,
+            // Soft gradient to fade the scrolling text behind the controls.
+            background:
+              "linear-gradient(90deg, var(--arcade-marquee-bg-top) 70%, transparent 100%)",
+          }}
+        >
+          {children}
+        </div>
+      )}
       <div
         className="arcade-marquee-text"
         style={{
+          flex: "1 1 auto",
           whiteSpace: "nowrap",
           display: "inline-block",
           animation: "marqueeScroll 60s linear infinite",
@@ -1974,23 +2027,113 @@ function Marquee() {
   );
 }
 
-function Footer() {
+function Footer({ children }: { children?: React.ReactNode }) {
   return (
     <div
       style={{
         maxWidth: 1280,
         margin: "48px auto 0",
         padding: "20px 0",
-        borderTop: "1px solid rgba(255,255,255,0.08)",
+        borderTop: "1px solid var(--arcade-border)",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
+        gap: 24,
         fontSize: 10,
         letterSpacing: "0.18em",
-        color: "rgba(255,255,255,0.45)",
+        color: "var(--arcade-text-dim-3)",
       }}
     >
       <span>UI PLAYGROUND ARCADE © 2026</span>
+      {children}
+    </div>
+  );
+}
+
+// Compact theme controls — 5 accent dots + sun/moon appearance toggle.
+// Two visual variants matching the placement (`marquee` is on neon
+// background, `footer` is on the page bg).
+function ThemeControls({
+  accent,
+  appearance,
+  onAccentChange,
+  onAppearanceChange,
+  variant,
+}: {
+  accent: AccentName;
+  appearance: "dark" | "light";
+  onAccentChange: (accent: AccentName) => void;
+  onAppearanceChange: (appearance: "dark" | "light") => void;
+  variant: "marquee" | "footer";
+}) {
+  const dotSize = variant === "marquee" ? 12 : 10;
+  const labelColor =
+    variant === "marquee"
+      ? "var(--arcade-marquee-text)"
+      : "var(--arcade-text-dim-3)";
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        fontSize: 9,
+        letterSpacing: "0.22em",
+        color: labelColor,
+        textTransform: "uppercase",
+        fontFamily: "var(--arcade-font)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {ALL_ACCENTS.map((a) => {
+          const active = a.name === accent;
+          return (
+            <button
+              key={a.name}
+              type="button"
+              aria-label={`Accent: ${a.name}`}
+              aria-pressed={active}
+              onClick={() => onAccentChange(a.name)}
+              style={{
+                width: dotSize,
+                height: dotSize,
+                borderRadius: "50%",
+                background: `hsl(${a.hue}, 50%, 60%)`,
+                border: active
+                  ? `2px solid var(--arcade-hot)`
+                  : `1px solid rgba(127,127,127,0.45)`,
+                padding: 0,
+                cursor: "pointer",
+                outline: "none",
+                transition: "transform 0.18s ease, border-color 0.18s ease",
+                transform: active ? "scale(1.18)" : "scale(1)",
+                boxShadow: active
+                  ? "0 0 8px rgba(255, 211, 90, 0.6)"
+                  : "none",
+              }}
+            />
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        aria-label={`Appearance: ${appearance === "dark" ? "switch to light" : "switch to dark"}`}
+        onClick={() => onAppearanceChange(appearance === "dark" ? "light" : "dark")}
+        style={{
+          fontFamily: "var(--arcade-font)",
+          fontSize: 10,
+          letterSpacing: "0.22em",
+          color: labelColor,
+          background: "transparent",
+          border: "1px solid currentColor",
+          borderRadius: 4,
+          padding: "3px 8px",
+          cursor: "pointer",
+          textTransform: "uppercase",
+        }}
+      >
+        {appearance === "dark" ? "DARK" : "LIGHT"}
+      </button>
     </div>
   );
 }
