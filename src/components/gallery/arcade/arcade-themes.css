@@ -7,13 +7,21 @@
  *      the room (appearance + accent) but the arcade rarely consumes them
  *      directly — most arcade chrome reads the derived tokens below.
  *   2. Arcade derived — semantic tokens the cabinets/marquee/coins read.
- *      Phase 1 holds these at today's hardcoded values so dark+table
- *      renders identically. Phase 2 ties them to --accent-hue / --swatch
- *      so changing the portfolio's accent visibly rotates the arcade.
+ *      All visible chrome (page bg, cabinet base, marquee, scanlines,
+ *      vignette, bag panel, text rungs) flows from --accent-hue, --swatch,
+ *      and the appearance mode.
  *
  * 500ms ease-in-out transition on themed properties (portfolio
  * convention — atomic theme change, slow enough to register as
  * intentional, fast enough to not feel sluggish).
+ *
+ * Porting to the portfolio site: this file becomes redundant. The
+ * portfolio's theme.css already defines --bg / --swatch / --accent-hue
+ * / --text-* for every accent × appearance combination — delete the
+ * passthrough blocks below and keep only the .arcade-root[data-
+ * appearance="..."] { --arcade-* } blocks (the derived tokens). Drop
+ * the .arcade-root data-appearance/data-accent attributes too: the
+ * portfolio sets them on <html>, so .arcade-root just inherits.
  */
 
 .arcade-root {
@@ -180,17 +188,15 @@
   --arcade-marquee-bg-bot: hsla(var(--accent-hue), 70%, 30%, 0.05);
   --arcade-marquee-border: hsla(var(--accent-hue), 70%, 50%, 0.3);
 
-  /* Per-cabinet status tags */
-  --arcade-tag-magenta: #ff7be5;
+  /* Slot-hint INSERT COIN text (default cyan; theming TBD if we want to
+   * tie this to the accent's complement). */
   --arcade-tag-cyan: #7be5ff;
 
   /* Chromatic aberration (cyan/red split on neon text) */
   --arcade-chrom-cyan: rgba(0, 200, 255, 0.7);
   --arcade-chrom-cyan-soft: rgba(0, 200, 255, 0.4);
-  --arcade-chrom-cyan-magenta: rgba(0, 200, 255, 0.35);
   --arcade-chrom-red: rgba(255, 80, 80, 0.6);
   --arcade-chrom-red-soft: rgba(255, 80, 80, 0.4);
-  --arcade-chrom-red-magenta: rgba(255, 80, 80, 0.35);
 }
 
 /* Font family toggle. Inline `fontFamily: MONO` (the const) is preserved

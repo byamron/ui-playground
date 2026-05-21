@@ -11,9 +11,6 @@ export interface GalleryDemo {
   // Museum-mode taxonomy (mock-Linnaean for the natural-history frame)
   family: string;
   catalogue: string;
-  // Arcade-mode flavor
-  highScore: string;
-  genre: string;
 }
 
 const palette = (slug: keyof typeof demoPalettes) => ({
@@ -29,8 +26,6 @@ export const galleryDemos: GalleryDemo[] = [
     ...palette("dvd-bounce"),
     family: "Mecanica inertia",
     catalogue: "MEC·001",
-    highScore: "999,999",
-    genre: "ARCADE · PHYSICS",
   },
   {
     path: "/slide-unlock",
@@ -39,8 +34,6 @@ export const galleryDemos: GalleryDemo[] = [
     ...palette("slide-unlock"),
     family: "Liquida tactus",
     catalogue: "LIQ·001",
-    highScore: "874,210",
-    genre: "PUZZLE · LIQUID",
   },
   {
     path: "/glass-pull",
@@ -49,8 +42,6 @@ export const galleryDemos: GalleryDemo[] = [
     ...palette("glass-pull"),
     family: "Liquida tactus",
     catalogue: "LIQ·002",
-    highScore: "612,488",
-    genre: "ACTION · GLASS",
   },
   {
     path: "/fisheye-text",
@@ -59,8 +50,6 @@ export const galleryDemos: GalleryDemo[] = [
     ...palette("fisheye-text"),
     family: "Lensiformes",
     catalogue: "LEN·001",
-    highScore: "440,902",
-    genre: "TYPING · LENS",
   },
   {
     path: "/cursor-morph",
@@ -69,8 +58,6 @@ export const galleryDemos: GalleryDemo[] = [
     ...palette("cursor-morph"),
     family: "Pointiformes",
     catalogue: "PNT·001",
-    highScore: "388,114",
-    genre: "ACTION · CURSOR",
   },
   {
     path: "/theme-sidebar",
@@ -79,8 +66,6 @@ export const galleryDemos: GalleryDemo[] = [
     ...palette("theme-sidebar"),
     family: "Chromatica",
     catalogue: "CHR·001",
-    highScore: "265,034",
-    genre: "TOOL · COLOR",
   },
   {
     path: "/task-ranking",
@@ -89,8 +74,6 @@ export const galleryDemos: GalleryDemo[] = [
     ...palette("task-ranking"),
     family: "Algoricae",
     catalogue: "ALG·001",
-    highScore: "192,777",
-    genre: "PUZZLE · LOGIC",
   },
   {
     path: "/figma-highfive",
@@ -99,8 +82,6 @@ export const galleryDemos: GalleryDemo[] = [
     ...palette("figma-highfive"),
     family: "Sorenidae",
     catalogue: "SOR·001",
-    highScore: "501,820",
-    genre: "GAG · MOCK-UI",
   },
   {
     path: "/airpods-nc",
@@ -109,8 +90,6 @@ export const galleryDemos: GalleryDemo[] = [
     ...palette("airpods-nc"),
     family: "Sorenidae",
     catalogue: "SOR·002",
-    highScore: "447,310",
-    genre: "GAG · MOCK-UI",
   },
   {
     path: "/spotify-wrapped-ads",
@@ -119,8 +98,6 @@ export const galleryDemos: GalleryDemo[] = [
     ...palette("spotify-wrapped-ads"),
     family: "Sorenidae",
     catalogue: "SOR·003",
-    highScore: "722,019",
-    genre: "GAG · MOCK-UI",
   },
   {
     path: "/strava-flights",
@@ -129,8 +106,6 @@ export const galleryDemos: GalleryDemo[] = [
     ...palette("strava-flights"),
     family: "Sorenidae",
     catalogue: "SOR·004",
-    highScore: "330,512",
-    genre: "GAG · MOCK-UI",
   },
   {
     path: "/spotify-dj",
@@ -139,8 +114,6 @@ export const galleryDemos: GalleryDemo[] = [
     ...palette("spotify-dj"),
     family: "Sorenidae",
     catalogue: "SOR·005",
-    highScore: "289,777",
-    genre: "GAG · MOCK-UI",
   },
   {
     path: "/companion-zoo",
@@ -149,8 +122,6 @@ export const galleryDemos: GalleryDemo[] = [
     ...palette("companion-zoo"),
     family: "Mascotidae",
     catalogue: "MAS·001",
-    highScore: "612,400",
-    genre: "EXHIBIT · MASCOTS",
   },
   {
     path: "/color-hold-pick",
@@ -159,8 +130,6 @@ export const galleryDemos: GalleryDemo[] = [
     ...palette("color-hold-pick"),
     family: "Chromatica",
     catalogue: "CHR·002",
-    highScore: "412,330",
-    genre: "TOOL · COLOR",
   },
   {
     path: "/github-sparkline",
@@ -169,8 +138,6 @@ export const galleryDemos: GalleryDemo[] = [
     ...palette("github-sparkline"),
     family: "Algoricae",
     catalogue: "ALG·002",
-    highScore: "276,118",
-    genre: "TOOL · DATA",
   },
   {
     path: "/page-transition",
@@ -179,8 +146,6 @@ export const galleryDemos: GalleryDemo[] = [
     ...palette("page-transition"),
     family: "Transitiones",
     catalogue: "TRN·001",
-    highScore: "199,802",
-    genre: "ACTION · TRANSITION",
   },
 ];
 
