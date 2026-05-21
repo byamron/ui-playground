@@ -25,8 +25,7 @@ export const galleryDemos: GalleryDemo[] = [
   {
     path: "/dvd-bounce",
     title: "DVD Bounce",
-    description:
-      "Classic bouncing logo with squash physics, corner celebrations, and mouse influence",
+    description: "Hit the corner.",
     ...palette("dvd-bounce"),
     family: "Mecanica inertia",
     catalogue: "MEC·001",
@@ -36,8 +35,7 @@ export const galleryDemos: GalleryDemo[] = [
   {
     path: "/slide-unlock",
     title: "Slide to Unlock",
-    description:
-      "Drag with fluid WebGL shader trail, spring snap-back, and switchable patterns",
+    description: "Slide to open.",
     ...palette("slide-unlock"),
     family: "Liquida tactus",
     catalogue: "LIQ·001",
@@ -47,7 +45,7 @@ export const galleryDemos: GalleryDemo[] = [
   {
     path: "/glass-pull",
     title: "Glass Pull",
-    description: "Hover between items — glass pill stretches and follows",
+    description: "Stretch the glass.",
     ...palette("glass-pull"),
     family: "Liquida tactus",
     catalogue: "LIQ·002",
@@ -57,8 +55,7 @@ export const galleryDemos: GalleryDemo[] = [
   {
     path: "/fisheye-text",
     title: "Fisheye Text",
-    description:
-      "Type freely — letters stretch wide on hover with spring physics",
+    description: "Type. Watch it bend.",
     ...palette("fisheye-text"),
     family: "Lensiformes",
     catalogue: "LEN·001",
@@ -68,7 +65,7 @@ export const galleryDemos: GalleryDemo[] = [
   {
     path: "/cursor-morph",
     title: "Cursor Morph",
-    description: "Inverted circle collapses into an arrow on card hover",
+    description: "The cursor changes shape.",
     ...palette("cursor-morph"),
     family: "Pointiformes",
     catalogue: "PNT·001",
@@ -78,8 +75,7 @@ export const galleryDemos: GalleryDemo[] = [
   {
     path: "/theme-sidebar",
     title: "Theme Sidebar",
-    description:
-      "Color, intensity, and mode — expandable sidebar with glass pills",
+    description: "Tune the light.",
     ...palette("theme-sidebar"),
     family: "Chromatica",
     catalogue: "CHR·001",
@@ -89,7 +85,7 @@ export const galleryDemos: GalleryDemo[] = [
   {
     path: "/task-ranking",
     title: "Task Ranking",
-    description: "Binary search pairwise comparison to prioritize tasks",
+    description: "Rank by feel.",
     ...palette("task-ranking"),
     family: "Algoricae",
     catalogue: "ALG·001",
@@ -99,7 +95,7 @@ export const galleryDemos: GalleryDemo[] = [
   {
     path: "/figma-highfive",
     title: "Figma High-Five",
-    description: "FigJam share modal with a very useful permission level",
+    description: "High-five in Figma.",
     ...palette("figma-highfive"),
     family: "Sorenidae",
     catalogue: "SOR·001",
@@ -109,7 +105,7 @@ export const galleryDemos: GalleryDemo[] = [
   {
     path: "/airpods-nc",
     title: "AirPods Contact NC",
-    description: "Noise cancellation settings, but per contact",
+    description: "Mute one. Hear another.",
     ...palette("airpods-nc"),
     family: "Sorenidae",
     catalogue: "SOR·002",
@@ -119,7 +115,7 @@ export const galleryDemos: GalleryDemo[] = [
   {
     path: "/spotify-wrapped-ads",
     title: "Spotify Wrapped for Ads",
-    description: "Your year in review — but for all the ads you endured",
+    description: "Your year in ads.",
     ...palette("spotify-wrapped-ads"),
     family: "Sorenidae",
     catalogue: "SOR·003",
@@ -129,7 +125,7 @@ export const galleryDemos: GalleryDemo[] = [
   {
     path: "/strava-flights",
     title: "Strava → Flights",
-    description: "Redeem your running miles as airline miles",
+    description: "Run, then fly.",
     ...palette("strava-flights"),
     family: "Sorenidae",
     catalogue: "SOR·004",
@@ -139,7 +135,7 @@ export const galleryDemos: GalleryDemo[] = [
   {
     path: "/spotify-dj",
     title: "Spotify DJ Call-In",
-    description: "Call in to the AI DJ like a radio station",
+    description: "Call the AI DJ.",
     ...palette("spotify-dj"),
     family: "Sorenidae",
     catalogue: "SOR·005",
@@ -149,7 +145,7 @@ export const galleryDemos: GalleryDemo[] = [
   {
     path: "/companion-zoo",
     title: "Companion Zoo",
-    description: "Software companion animals through the ages",
+    description: "Meet your old pets.",
     ...palette("companion-zoo"),
     family: "Mascotidae",
     catalogue: "MAS·001",
@@ -159,8 +155,7 @@ export const galleryDemos: GalleryDemo[] = [
   {
     path: "/color-hold-pick",
     title: "Color Hold Pick",
-    description:
-      "Press and hold the rainbow swatch — the card becomes an HSB canvas",
+    description: "Press and hold for color.",
     ...palette("color-hold-pick"),
     family: "Chromatica",
     catalogue: "CHR·002",
@@ -170,8 +165,7 @@ export const galleryDemos: GalleryDemo[] = [
   {
     path: "/github-sparkline",
     title: "GitHub Sparkline",
-    description:
-      "Sparkline hints at the heatmap — bars shake-and-settle on expand",
+    description: "Unfold the year.",
     ...palette("github-sparkline"),
     family: "Algoricae",
     catalogue: "ALG·002",
@@ -181,8 +175,7 @@ export const galleryDemos: GalleryDemo[] = [
   {
     path: "/page-transition",
     title: "Page Transition",
-    description:
-      "Click → arrow winds up and flies off as the page fades, back arrow mirrors on return",
+    description: "Click. Watch it fly.",
     ...palette("page-transition"),
     family: "Transitiones",
     catalogue: "TRN·001",

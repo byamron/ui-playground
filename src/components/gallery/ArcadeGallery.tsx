@@ -723,50 +723,36 @@ const CabinetTile = memo(function CabinetTile({
         )}
       </AnimatePresence>
 
-      {/* Top status bar */}
+      {/* PLAYS (data row — always mono, opts out of font toggle).
+       * TODO(backend): hook up a real plays counter once the BE lands. */}
       <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          fontSize: 9,
-          letterSpacing: "0.18em",
-          color: "rgba(255,255,255,0.5)",
-          position: "relative",
-        }}
-      >
-        <span style={{ color: "var(--arcade-tag-magenta)" }}>
-          CAB.{String(index + 1).padStart(2, "0")}
-        </span>
-        <span style={{ color: "var(--arcade-tag-cyan)" }}>{demo.genre}</span>
-      </div>
-
-      {/* HIGH SCORE */}
-      <div
+        className="arcade-data-row"
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "baseline",
           fontSize: 10,
           letterSpacing: "0.16em",
-          marginTop: 14,
           position: "relative",
           minHeight: 16,
+          fontFamily: MONO,
+          fontVariantNumeric: "tabular-nums",
         }}
       >
-        <span style={{ color: "rgba(255,255,255,0.45)" }}>HIGH SCORE</span>
+        <span style={{ color: "rgba(255,255,255,0.45)" }}>PLAYS</span>
         <span
           style={{
             fontWeight: 700,
-            color: HOT,
-            textShadow: "0 0 6px rgba(255, 211, 90, 0.6)",
-            fontVariantNumeric: "tabular-nums",
+            color: "rgba(255,255,255,0.45)",
           }}
         >
-          {demo.highScore}
+          0
         </span>
       </div>
+
+      {/* CREDITS (data row — always mono). */}
       <div
+        className="arcade-data-row"
         style={{
           display: "flex",
           justifyContent: "space-between",
@@ -776,6 +762,8 @@ const CabinetTile = memo(function CabinetTile({
           marginTop: 6,
           position: "relative",
           minHeight: 16,
+          fontFamily: MONO,
+          fontVariantNumeric: "tabular-nums",
         }}
       >
         <span style={{ color: "rgba(255,255,255,0.45)" }}>CREDITS</span>
@@ -784,7 +772,6 @@ const CabinetTile = memo(function CabinetTile({
             fontWeight: 700,
             color: lit ? "#7bff8a" : "rgba(255,255,255,0.25)",
             textShadow: lit ? "0 0 6px rgba(123, 255, 138, 0.7)" : "none",
-            fontVariantNumeric: "tabular-nums",
             transition: "color 0.3s ease",
           }}
         >
@@ -792,26 +779,38 @@ const CabinetTile = memo(function CabinetTile({
         </span>
       </div>
 
-      {/* Title */}
-      <h2
-        style={{
-          position: "relative",
-          marginTop: "auto",
-          paddingTop: 20,
-          fontSize: 22,
-          fontWeight: 800,
-          letterSpacing: "0.04em",
-          lineHeight: 1.05,
-          textTransform: "uppercase",
-          color: lit ? "#ffffff" : "var(--arcade-text-dim-1)",
-          textShadow: lit
-            ? `0 0 10px ${glow}, 0 0 22px ${glow}aa, 2px 0 0 var(--arcade-chrom-cyan), -2px 0 0 var(--arcade-chrom-red)`
-            : `1px 0 0 var(--arcade-chrom-cyan-soft), -1px 0 0 var(--arcade-chrom-red-soft)`,
-          transition: "text-shadow 0.3s ease, color 0.3s ease",
-        }}
-      >
-        {demo.title}
-      </h2>
+      {/* Title + description — pushed to bottom of the card. */}
+      <div style={{ marginTop: "auto", paddingTop: 20, position: "relative" }}>
+        <h2
+          style={{
+            fontSize: 22,
+            fontWeight: 800,
+            letterSpacing: "0.04em",
+            lineHeight: 1.05,
+            textTransform: "uppercase",
+            margin: 0,
+            color: lit ? "#ffffff" : "var(--arcade-text-dim-1)",
+            textShadow: lit
+              ? `0 0 10px ${glow}, 0 0 22px ${glow}aa, 2px 0 0 var(--arcade-chrom-cyan), -2px 0 0 var(--arcade-chrom-red)`
+              : `1px 0 0 var(--arcade-chrom-cyan-soft), -1px 0 0 var(--arcade-chrom-red-soft)`,
+            transition: "text-shadow 0.3s ease, color 0.3s ease",
+          }}
+        >
+          {demo.title}
+        </h2>
+        <p
+          style={{
+            margin: "8px 0 0",
+            fontSize: 12,
+            lineHeight: 1.35,
+            letterSpacing: "0.02em",
+            color: "var(--arcade-text-dim-2)",
+            textTransform: "none",
+          }}
+        >
+          {demo.description}
+        </p>
+      </div>
 
       {/* Footer — slot OR tap-to-play button */}
       <CabinetFooter
