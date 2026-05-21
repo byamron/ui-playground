@@ -135,6 +135,7 @@ export function ArcadeGallery({
   accentHue,
   hueSource,
   font,
+  appearance,
 }: {
   audio: boolean;
   coinInsert: CoinInsertVariant;
@@ -143,6 +144,7 @@ export function ArcadeGallery({
   accentHue: number;
   hueSource: HueSource;
   font: ArcadeFont;
+  appearance: "dark" | "light";
 }) {
   // Per-cabinet state, keyed by demo path
   const [states, setStates] = useState<Record<string, CabinetState>>(() =>
@@ -481,7 +483,7 @@ export function ArcadeGallery({
   return (
     <div
       className="arcade-root"
-      data-appearance="dark"
+      data-appearance={appearance}
       data-accent={accent}
       data-arcade-font={font}
       style={{
@@ -1083,14 +1085,12 @@ const CoinBag = memo(function CoinBag({
         // Floating HUD panel — gives the label something solid to read
         // against and groups the bag + JACKPOT visually as one unit.
         padding: "12px 14px 14px",
-        background:
-          "linear-gradient(180deg, rgba(14, 8, 20, 0.78) 0%, rgba(6, 4, 10, 0.85) 100%)",
+        background: "var(--arcade-bag-panel-bg)",
         backdropFilter: "blur(14px)",
         WebkitBackdropFilter: "blur(14px)",
-        border: "1px solid rgba(255, 211, 90, 0.16)",
+        border: "1px solid var(--arcade-bag-panel-border)",
         borderRadius: 12,
-        boxShadow:
-          "0 8px 28px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255, 211, 90, 0.08)",
+        boxShadow: "var(--arcade-bag-panel-shadow)",
         pointerEvents: "none", // children opt in
       }}
     >
@@ -1099,7 +1099,7 @@ const CoinBag = memo(function CoinBag({
           fontFamily: "var(--arcade-font)",
           fontSize: 9,
           letterSpacing: "0.22em",
-          color: "rgba(255,255,255,0.78)",
+          color: "var(--arcade-bag-label)",
           textAlign: "center",
           lineHeight: 1.5,
         }}
@@ -1917,8 +1917,7 @@ function ScreenOverlay() {
           position: "fixed",
           inset: 0,
           pointerEvents: "none",
-          background:
-            "repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0px, rgba(0,0,0,0.18) 1px, transparent 2px, transparent 3px)",
+          background: `repeating-linear-gradient(0deg, var(--arcade-scanline-page) 0px, var(--arcade-scanline-page) 1px, transparent 2px, transparent 3px)`,
           zIndex: 50,
           animation: "arcadeFlicker 6s ease-in-out infinite",
         }}
@@ -1929,8 +1928,7 @@ function ScreenOverlay() {
           position: "fixed",
           inset: 0,
           pointerEvents: "none",
-          background:
-            "radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.55) 100%)",
+          background: `radial-gradient(ellipse at center, transparent 50%, var(--arcade-vignette) 100%)`,
           zIndex: 51,
         }}
       />

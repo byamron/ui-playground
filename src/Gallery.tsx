@@ -20,6 +20,7 @@ const STORAGE_ARCADE_COIN_INSERT = "ui-playground:arcade-coin-insert";
 const STORAGE_ARCADE_REFILL = "ui-playground:arcade-refill";
 const STORAGE_ARCADE_HUE_SOURCE = "ui-playground:arcade-hue-source";
 const STORAGE_ARCADE_FONT = "ui-playground:arcade-font";
+const STORAGE_ARCADE_APPEARANCE = "ui-playground:arcade-appearance";
 
 // The shared appearance + accent vocabulary — same shape as the portfolio's
 // theme tokens. Museum has used these from day one; arcade now consumes
@@ -36,6 +37,7 @@ type ArcadeFont =
   | "jetbrains-mono"
   | "ibm-plex-mono"
   | "onest";
+type ArcadeAppearance = "dark" | "light";
 
 // Numeric hue per accent (matches arcade-themes.css / tokens.md / portfolio).
 const ACCENT_HUES: Record<Accent, number> = {
@@ -118,6 +120,13 @@ function readArcadeFont(): ArcadeFont {
   return "sf-mono";
 }
 
+function readArcadeAppearance(): ArcadeAppearance {
+  if (typeof window === "undefined") return "dark";
+  const stored = window.localStorage.getItem(STORAGE_ARCADE_APPEARANCE);
+  if (stored === "dark" || stored === "light") return stored;
+  return "dark";
+}
+
 
 export function Gallery() {
   const [mode, setMode] = useState<GalleryMode>(readMode);
@@ -131,6 +140,9 @@ export function Gallery() {
   const [refill, setRefill] = useState<ArcadeRefill>(readArcadeRefill);
   const [hueSource, setHueSource] = useState<ArcadeHueSource>(readArcadeHueSource);
   const [arcadeFont, setArcadeFont] = useState<ArcadeFont>(readArcadeFont);
+  const [arcadeAppearance, setArcadeAppearance] = useState<ArcadeAppearance>(
+    readArcadeAppearance,
+  );
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_MODE, mode);
@@ -156,6 +168,9 @@ export function Gallery() {
   useEffect(() => {
     window.localStorage.setItem(STORAGE_ARCADE_FONT, arcadeFont);
   }, [arcadeFont]);
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_ARCADE_APPEARANCE, arcadeAppearance);
+  }, [arcadeAppearance]);
 
   return (
     <DevPanel
@@ -234,6 +249,15 @@ export function Gallery() {
                   { label: "Onest", value: "onest" },
                 ]}
               />
+              <DevButtonGroup<ArcadeAppearance>
+                label="Appearance"
+                value={arcadeAppearance}
+                onChange={setArcadeAppearance}
+                options={[
+                  { label: "Dark", value: "dark" },
+                  { label: "Light", value: "light" },
+                ]}
+              />
               <DevButtonGroup<ArcadeCoinInsert>
                 label="Insert"
                 value={coinInsert}
@@ -278,6 +302,7 @@ export function Gallery() {
           accentHue={ACCENT_HUES[accent]}
           hueSource={hueSource}
           font={arcadeFont}
+          appearance={arcadeAppearance}
         />
       )}
       {mode === "curious" && <CuriousGallery />}

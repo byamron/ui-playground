@@ -58,33 +58,113 @@
   --accent-hue: 90;
 }
 
-/* Arcade derived tokens.
+/* Light-mode accent passthroughs. */
+.arcade-root[data-appearance="light"] {
+  --text-dark: hsl(0, 0%, 7%);
+  --text-medium: hsl(0, 0%, 20%);
+  --text-grey: hsl(240, 2%, 45%);
+  --text-light-grey: hsl(0, 0%, 70%);
+  --text-link: hsl(219, 49%, 53%);
+  --text-underline: hsla(0, 0%, 7%, 0.2);
+}
+.arcade-root[data-appearance="light"][data-accent="sky"] {
+  --bg: hsl(200, 23%, 95%);
+  --swatch: hsl(204, 50%, 70%);
+  --accent-hue: 204;
+}
+.arcade-root[data-appearance="light"][data-accent="table"] {
+  --bg: hsl(30, 17%, 91%);
+  --swatch: hsl(34, 50%, 60%);
+  --accent-hue: 34;
+}
+.arcade-root[data-appearance="light"][data-accent="portrait"] {
+  --bg: hsl(39, 15%, 92%);
+  --swatch: hsl(43, 22%, 62%);
+  --accent-hue: 43;
+}
+.arcade-root[data-appearance="light"][data-accent="pizza"] {
+  --bg: hsl(10, 30%, 96%);
+  --swatch: hsl(15, 53%, 64%);
+  --accent-hue: 15;
+}
+.arcade-root[data-appearance="light"][data-accent="vineyard"] {
+  --bg: hsl(86, 18%, 93%);
+  --swatch: hsl(90, 36%, 48%);
+  --accent-hue: 90;
+}
+
+/* Arcade derived tokens — appearance-aware.
  *
- * Page background + marquee are TIED to --accent-hue / --swatch so the
- * accent picker visibly recolors the room. Cabinet base + per-cabinet
- * glow are still hardcoded for now — Phase 2 sibling-derives those.
+ * Dark mode: today's CRT-arcade vocabulary. Cabinets are near-black with
+ * accent-tinted page glow.
+ *
+ * Light mode: "showroom floor." Page bg becomes the bright portfolio
+ * accent surface; cabinets STAY DARK (CRTs are physically dark) but
+ * slightly less black so they don't punch a hole in the bright room.
+ * Scanlines + vignette dim significantly (they'd be aggressive on light).
  */
-.arcade-root {
-  /* Page chrome — base stays near-black; the radial glow tints with accent. */
+.arcade-root[data-appearance="dark"] {
   --arcade-bg: #06060a;
   --arcade-bg-glow: hsl(var(--accent-hue), 55%, 11%);
-  --arcade-page-bg:
-    radial-gradient(ellipse at 50% 0%, var(--arcade-bg-glow) 0%, var(--arcade-bg) 55%),
-    var(--arcade-bg);
 
-  /* Cabinet base (per-demo hue still drives the cabinet's radial gradient
-   * directly via inline style — Phase 2 will sibling-derive that hue from
-   * --accent-hue). */
   --arcade-cabinet-base: #050308;
   --arcade-border: rgba(255, 255, 255, 0.08);
 
-  /* Text rungs (arcade-specific so they don't conflict with portfolio's
-   * --text-* tokens above). */
   --arcade-text: #f5f0ff;
   --arcade-text-dim-1: rgba(255, 255, 255, 0.85);
   --arcade-text-dim-2: rgba(255, 255, 255, 0.55);
   --arcade-text-dim-3: rgba(255, 255, 255, 0.45);
   --arcade-text-faint: rgba(255, 255, 255, 0.25);
+
+  --arcade-bag-panel-bg:
+    linear-gradient(180deg, rgba(14, 8, 20, 0.78) 0%, rgba(6, 4, 10, 0.85) 100%);
+  --arcade-bag-panel-border: rgba(255, 211, 90, 0.16);
+  --arcade-bag-panel-shadow:
+    0 8px 28px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 211, 90, 0.08);
+  --arcade-bag-label: rgba(255, 255, 255, 0.78);
+
+  --arcade-scanline-page: rgba(0, 0, 0, 0.18);
+  --arcade-scanline-tile: rgba(255, 255, 255, 0.04);
+  --arcade-vignette: rgba(0, 0, 0, 0.55);
+}
+
+.arcade-root[data-appearance="light"] {
+  /* Page bg = portfolio's bright accent surface. */
+  --arcade-bg: var(--bg);
+  /* Soft accent glow at the top — slightly more saturated than the bg
+   * so the radial halo registers. */
+  --arcade-bg-glow: hsl(var(--accent-hue), 30%, 88%);
+
+  /* Cabinets stay dim — they're CRTs against the bright wall. Slightly
+   * less black than dark mode so they read as off-screens, not voids. */
+  --arcade-cabinet-base: hsl(var(--accent-hue), 22%, 14%);
+  --arcade-border: rgba(0, 0, 0, 0.12);
+
+  --arcade-text: hsl(0, 0%, 12%);
+  --arcade-text-dim-1: rgba(0, 0, 0, 0.85);
+  --arcade-text-dim-2: rgba(0, 0, 0, 0.6);
+  --arcade-text-dim-3: rgba(0, 0, 0, 0.5);
+  --arcade-text-faint: rgba(0, 0, 0, 0.3);
+
+  --arcade-bag-panel-bg:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.92) 0%, rgba(245, 238, 228, 0.95) 100%);
+  --arcade-bag-panel-border: rgba(0, 0, 0, 0.12);
+  --arcade-bag-panel-shadow:
+    0 8px 28px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  --arcade-bag-label: rgba(0, 0, 0, 0.65);
+
+  /* Scanlines + vignette dim heavily in light mode. */
+  --arcade-scanline-page: rgba(0, 0, 0, 0.05);
+  --arcade-scanline-tile: rgba(255, 255, 255, 0.03);
+  --arcade-vignette: rgba(0, 0, 0, 0.06);
+}
+
+/* Page bg gradient + identity colors + marquee + tags + chromatic
+ * aberration — same for both appearances. */
+.arcade-root {
+  --arcade-page-bg:
+    radial-gradient(ellipse at 50% 0%, var(--arcade-bg-glow) 0%, var(--arcade-bg) 55%),
+    var(--arcade-bg);
 
   /* Status / signal — gold + green stay constant (identity colors). */
   --arcade-hot: #ffd35a;
@@ -111,11 +191,6 @@
   --arcade-chrom-red: rgba(255, 80, 80, 0.6);
   --arcade-chrom-red-soft: rgba(255, 80, 80, 0.4);
   --arcade-chrom-red-magenta: rgba(255, 80, 80, 0.35);
-
-  /* Vignette + scanline overlays */
-  --arcade-scanline-page: rgba(0, 0, 0, 0.18);
-  --arcade-scanline-tile: rgba(255, 255, 255, 0.04);
-  --arcade-vignette: rgba(0, 0, 0, 0.55);
 }
 
 /* Font family toggle. Inline `fontFamily: MONO` (the const) is preserved
