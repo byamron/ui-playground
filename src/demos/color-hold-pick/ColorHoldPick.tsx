@@ -1,5 +1,6 @@
 import { useState, useRef, useLayoutEffect, useEffect, useCallback } from "react";
 import {
+  AnimatePresence,
   motion,
   useMotionValue,
   useMotionTemplate,
@@ -30,9 +31,20 @@ const SWATCH_R = SWATCH / 2;
 const SHARP_SWATCH = 8;
 const SHARP_CARD = 10;
 const ROUNDED_CARD = 32;
+// iPhone 14 Pro / 15 / 16 family screen corner radius is ~55.5pt. With a
+// 16px margin between card and screen edge, the concentric inner radius
+// is ~40px so the card's curve traces parallel to the phone's curve.
+const ROUNDED_CARD_MOBILE = 40;
 const MOVE_THRESHOLD = 4; // px of motion before a press becomes a commit
 const HOLD_DELAY = 200; // ms before a press commits to "picker mode"
 const RING_OFFSET = 3.5;
+
+// Brush trail thresholds — emit a fading color ghost behind the handle when
+// the user is dragging fast. Speed is measured in px/s on the smoothed
+// velocity signal; throttled so we never emit more than once per frame-pair.
+const TRAIL_SPEED_THRESHOLD = 700;
+const TRAIL_EMIT_INTERVAL_MS = 50;
+const TRAIL_LIFE_MS = 320;
 
 // ── Theme tokens ──────────────────────────────────────────────────────────
 
@@ -330,9 +342,13 @@ function SunIcon({ stroke }: { stroke: string }) {
 }
 
 function MoonIcon({ stroke }: { stroke: string }) {
+  // The crescent's body bulges lower-left and the bite removes upper-right
+  // mass, so the optical center sits lower-left of geometric center.
+  // Translate up-and-right to compensate.
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
       <path
+        transform="translate(1.1 -0.8)"
         d="M14.2 11.8a5.2 5.2 0 01-6-6 5.4 5.4 0 106 6z"
         stroke={stroke}
         strokeWidth="1.4"
@@ -362,7 +378,30 @@ function SharpIcon({ stroke }: { stroke: string }) {
 // Main
 // ═════════════════════════════════════════════════════════════════════════
 
+// Match iPhone screen aspect (~19.5:9, i.e. 393:852) so the "phone" frame
+// looks right on desktop. On a real mobile viewport this is ignored and the
+// surface fills the screen edge-to-edge.
+const PHONE_W = 393;
+const PHONE_H = 760;
+const MOBILE_BREAKPOINT = 540;
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window === "undefined"
+      ? false
+      : window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return isMobile;
+}
+
 export function ColorHoldPick() {
+  const isMobile = useIsMobile();
   const [appearance, setAppearance] = useState<Appearance>("light");
   const [corners, setCorners] = useState<"rounded" | "sharp">("rounded");
   const [fontIdx, setFontIdx] = useState<0 | 1 | 2>(0);
@@ -375,7 +414,12 @@ export function ColorHoldPick() {
   const presets = PRESETS[appearance];
   const spectrumBG = makeSpectrum(tokens);
   const swatchRadius = corners === "rounded" ? SWATCH_R : SHARP_SWATCH;
-  const cardRadius = corners === "rounded" ? ROUNDED_CARD : SHARP_CARD;
+  const cardRadius =
+    corners === "rounded"
+      ? isMobile
+        ? ROUNDED_CARD_MOBILE
+        : ROUNDED_CARD
+      : SHARP_CARD;
   const titleFamily = FONTS[fontIdx].family;
 
   const phoneRef = useRef<HTMLDivElement>(null);
@@ -397,8 +441,13 @@ export function ColorHoldPick() {
   const revealCY = useMotionValue(0);
   const revealMask = useMotionTemplate`radial-gradient(circle ${revealR}px at ${revealCX}px ${revealCY}px, rgba(0,0,0,1) 45%, rgba(0,0,0,0) 100%)`;
 
-  // Phone-surface commit pulse — tiny scale beat on release-with-drag.
-  const phoneScale = useMotionValue(1);
+  // Commit bloom — soft radial light pulse on the phone surface where the
+  // handle lands at release-with-drag. Reads as "the surface received the
+  // color." Position is in phone-surface coordinates.
+  const bloomCX = useMotionValue(0);
+  const bloomCY = useMotionValue(0);
+  const bloomOpacity = useMotionValue(0);
+  const bloomBg = useMotionTemplate`radial-gradient(circle 220px at ${bloomCX}px ${bloomCY}px, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.18) 38%, rgba(255,255,255,0) 72%)`;
 
   // Velocity-aware brush shadow.
   const pickingMV = useMotionValue(0);
@@ -436,6 +485,49 @@ export function ColorHoldPick() {
   // without being held long enough to enter picker mode. Visibly spins the
   // conic gradient for a beat, inviting the user to hold instead of tap.
   const jiggleRotate = useMotionValue(0);
+
+  // Brush trail — fading color ghosts emitted behind the handle during fast
+  // drags. Throttled by TRAIL_EMIT_INTERVAL_MS and gated on smoothSpeed.
+  type TrailNode = { id: number; x: number; y: number; color: string };
+  const [trail, setTrail] = useState<TrailNode[]>([]);
+  const lastTrailEmitRef = useRef(0);
+  const trailIdRef = useRef(0);
+  const trailTimersRef = useRef<Set<number>>(new Set());
+
+  // Clean up any in-flight trail removal timers on unmount.
+  useEffect(() => {
+    return () => {
+      trailTimersRef.current.forEach((t) => window.clearTimeout(t));
+      trailTimersRef.current.clear();
+    };
+  }, []);
+
+  // iOS 26+ Safari samples toolbar tint from position:fixed elements near
+  // the viewport edges; WebKit's live observer re-tints as those colors
+  // change. The observer is most reliable when it sees a DIRECT change to
+  // body.style.backgroundColor (CSS variable cascades alone don't always
+  // trigger re-sampling). Hit every signal: body inline style, the tint
+  // strips' inline style via refs, the --safari-tint variable, and the
+  // legacy theme-color meta (for iOS 15-25 and Android Chrome).
+  const tintTopRef = useRef<HTMLDivElement | null>(null);
+  const tintBottomRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    document.documentElement.style.setProperty("--safari-tint", appColor);
+    document.body.style.backgroundColor = appColor;
+    if (tintTopRef.current) tintTopRef.current.style.backgroundColor = appColor;
+    if (tintBottomRef.current)
+      tintBottomRef.current.style.backgroundColor = appColor;
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) themeMeta.setAttribute("content", appColor);
+  }, [appColor]);
+  useEffect(() => {
+    return () => {
+      document.documentElement.style.removeProperty("--safari-tint");
+      document.body.style.removeProperty("background-color");
+      const themeMeta = document.querySelector('meta[name="theme-color"]');
+      if (themeMeta) themeMeta.setAttribute("content", "#0a0a0a");
+    };
+  }, []);
 
   // Card offset within the phone surface.
   const cardOffsetRef = useRef({ x: 0, y: 0 });
@@ -544,11 +636,35 @@ export function ColorHoldPick() {
         }
         const cx = Math.max(0, Math.min(card.width, ev.clientX - card.left));
         const cy = Math.max(0, Math.min(card.height, ev.clientY - card.top));
-        x.set(cx + cardOffsetRef.current.x - SWATCH_R);
-        y.set(cy + cardOffsetRef.current.y - SWATCH_R);
-        setAppColor(
-          colorFromPos(cx, cy, card.width, card.height, tokensRef.current)
+        const hx = cx + cardOffsetRef.current.x - SWATCH_R;
+        const hy = cy + cardOffsetRef.current.y - SWATCH_R;
+        x.set(hx);
+        y.set(hy);
+        const sampled = colorFromPos(
+          cx,
+          cy,
+          card.width,
+          card.height,
+          tokensRef.current
         );
+        setAppColor(sampled);
+
+        // Emit a fading brush ghost on fast drags. Throttled so we don't
+        // flood state during a single sweep.
+        const tNow = performance.now();
+        if (
+          smoothSpeed.get() > TRAIL_SPEED_THRESHOLD &&
+          tNow - lastTrailEmitRef.current > TRAIL_EMIT_INTERVAL_MS
+        ) {
+          lastTrailEmitRef.current = tNow;
+          const id = ++trailIdRef.current;
+          setTrail((arr) => [...arr, { id, x: hx, y: hy, color: sampled }]);
+          const timer = window.setTimeout(() => {
+            trailTimersRef.current.delete(timer);
+            setTrail((arr) => arr.filter((g) => g.id !== id));
+          }, TRAIL_LIFE_MS);
+          trailTimersRef.current.add(timer);
+        }
       };
 
       const onUp = () => {
@@ -573,9 +689,13 @@ export function ColorHoldPick() {
           setAppColor(prevStateRef.current.color);
           setSelected(prevStateRef.current.selected);
         } else {
-          fmAnimate(phoneScale, [1, 1.005, 1], {
-            duration: 0.22,
-            times: [0, 0.45, 1],
+          // Commit bloom — radial light pulse on the phone surface, centered
+          // on the handle's landing position. Reads as "surface received it."
+          bloomCX.set(x.get() + SWATCH_R);
+          bloomCY.set(y.get() + SWATCH_R);
+          fmAnimate(bloomOpacity, [0, 1, 0], {
+            duration: 0.5,
+            times: [0, 0.3, 1],
             ease: [0.2, 0, 0, 1],
           });
         }
@@ -599,7 +719,20 @@ export function ColorHoldPick() {
       activeGestureRef.current.onMove = onMove;
       activeGestureRef.current.onUp = onUp;
     },
-    [x, y, appColor, selected, revealR, revealCX, revealCY, phoneScale, jiggleRotate]
+    [
+      x,
+      y,
+      appColor,
+      selected,
+      revealR,
+      revealCX,
+      revealCY,
+      bloomCX,
+      bloomCY,
+      bloomOpacity,
+      jiggleRotate,
+      smoothSpeed,
+    ]
   );
 
   // Toggle appearance — swap selected preset to its counterpart in the new
@@ -618,44 +751,70 @@ export function ColorHoldPick() {
   return (
     <div
       style={{
-        width: "100vw",
-        height: "100vh",
+        position: isMobile ? "fixed" : "relative",
+        inset: isMobile ? 0 : "auto",
+        width: isMobile ? "auto" : "100vw",
+        height: isMobile ? "auto" : "100vh",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#121214",
+        background: isMobile ? appColor : "#121214",
         fontFamily: FONT,
         overflow: "hidden",
+        transition: isMobile && !picking ? "background 0.25s ease" : "none",
       }}
     >
-      {/* Phone surface — background is the live picked color. */}
+      {isMobile && (
+        <>
+          <div
+            ref={tintTopRef}
+            className="safari-tint-strip safari-tint-strip--top"
+          />
+          <div
+            ref={tintBottomRef}
+            className="safari-tint-strip safari-tint-strip--bottom"
+          />
+        </>
+      )}
+      {/* Phone surface — background is the live picked color. On desktop this
+          is a floating phone frame; on mobile it fills the viewport so the
+          real device chrome (notch, home indicator) is what the user sees. */}
       <motion.div
         ref={phoneRef}
         style={{
-          width: 393,
-          height: 760,
-          borderRadius: 44,
+          width: isMobile ? "100%" : PHONE_W,
+          height: isMobile ? "100%" : PHONE_H,
+          borderRadius: isMobile ? 0 : 44,
           overflow: "hidden",
           background: appColor,
-          boxShadow:
-            "0 30px 80px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06)",
+          boxShadow: isMobile
+            ? "none"
+            : "0 30px 80px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06)",
           display: "flex",
           flexDirection: "column",
           position: "relative",
           userSelect: "none",
           touchAction: "none",
           transition: picking ? "none" : "background 0.25s ease",
-          scale: phoneScale,
+          // Wrapper extends behind safe areas via body's 100vw/100vh so the
+          // picked color tints status bar + URL bar / home indicator. Top
+          // is padded by safe-area-inset-top so the card sits below the iOS
+          // status bar. Bottom has NO padding — card extends to 16px from
+          // physical screen edge for a consistent margin matching the
+          // sides. In PWA the thin home-indicator bar overlays just the
+          // 16px margin. In Safari the URL bar will cover the bottom of
+          // the card; use PWA (Add to Home Screen) for the polished view.
+          paddingTop: isMobile ? "env(safe-area-inset-top)" : 0,
         }}
       >
-        <StatusBar tint={tokens.statusTint} />
+        {!isMobile && <StatusBar tint={tokens.statusTint} />}
 
         {/* Settings card */}
         <div
           ref={cardRef}
           style={{
             flex: 1,
-            margin: "44px 12px 12px",
+            margin: isMobile ? "56px 16px 16px" : "44px 12px 12px",
             borderRadius: cardRadius,
             position: "relative",
             overflow: "hidden",
@@ -873,6 +1032,31 @@ export function ColorHoldPick() {
           }}
         />
 
+        {/* Brush trail — fading color ghosts during fast drags */}
+        <AnimatePresence>
+          {trail.map((node) => (
+            <motion.div
+              key={node.id}
+              initial={{ opacity: 0.55, scale: 1 }}
+              animate={{ opacity: 0, scale: 0.82 }}
+              transition={{ duration: TRAIL_LIFE_MS / 1000, ease: [0.2, 0, 0, 1] }}
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                x: node.x,
+                y: node.y,
+                width: SWATCH,
+                height: SWATCH,
+                borderRadius: swatchRadius,
+                background: node.color,
+                pointerEvents: "none",
+                zIndex: 4,
+              }}
+            />
+          ))}
+        </AnimatePresence>
+
         {/* Rainbow handle */}
         <motion.div
           onPointerDown={startPick}
@@ -923,6 +1107,18 @@ export function ColorHoldPick() {
             }}
           />
         </motion.div>
+
+        {/* Commit bloom — soft radial light pulse on release-with-drag */}
+        <motion.div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: bloomBg,
+            opacity: bloomOpacity,
+            pointerEvents: "none",
+            zIndex: 6,
+          }}
+        />
       </motion.div>
     </div>
   );

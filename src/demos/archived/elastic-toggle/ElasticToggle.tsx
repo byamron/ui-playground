@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { bg, demoPalettes, accent, HUES } from "../../palette";
+import { bg, demoPalettes, accent, HUES } from "../../../palette";
 
 const BG = bg(demoPalettes["elastic-toggle"]);
 const ACCENT_ON = accent(HUES.sky, 50, 65);

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { bg, demoPalettes, text as textColors } from "../../palette";
+import { bg, demoPalettes, text as textColors } from "../../../palette";
 
 const BG = bg(demoPalettes["text-scramble"]);
 
