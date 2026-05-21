@@ -17,7 +17,7 @@ Inventory of every demo in the repo and its ship status.
 | Figpal Cursor | `/figpal-cursor` | In progress |
 | Fisheye Text | `/fisheye-text` | In progress |
 | Frame Guide | `/frame-guide` | In progress |
-| GitHub Sparkline | `/github-sparkline` | In progress |
+| GitHub Sparkline | `/github-sparkline` | Ready |
 | Glass Pull | `/glass-pull` | Ready |
 | Magnetic Button | `/magnetic-button` | In progress |
 | Page Transition | `/page-transition` | In progress |
