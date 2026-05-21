@@ -1,0 +1,135 @@
+/* Arcade theming.
+ *
+ * Two-tier token system:
+ *   1. Portfolio passthrough — copied verbatim from
+ *      /Users/benyamron/Desktop/coding/portfolio/tokens.md. These are the
+ *      same tokens museum uses, scoped here to .arcade-root. They describe
+ *      the room (appearance + accent) but the arcade rarely consumes them
+ *      directly — most arcade chrome reads the derived tokens below.
+ *   2. Arcade derived — semantic tokens the cabinets/marquee/coins read.
+ *      Phase 1 holds these at today's hardcoded values so dark+table
+ *      renders identically. Phase 2 ties them to --accent-hue / --swatch
+ *      so changing the portfolio's accent visibly rotates the arcade.
+ *
+ * 500ms ease-in-out transition on themed properties (portfolio
+ * convention — atomic theme change, slow enough to register as
+ * intentional, fast enough to not feel sluggish).
+ */
+
+.arcade-root {
+  /* Portfolio passthrough — text. (Arcade is dark-only for Phase 1; light
+   * mode toggle lives in Phase 5.) */
+  --text-dark: hsl(0, 0%, 99%);
+  --text-medium: hsl(0, 0%, 90%);
+  --text-grey: hsl(240, 2%, 75%);
+  --text-light-grey: hsl(0, 0%, 40%);
+  --text-link: hsl(220, 54%, 81%);
+  --text-underline: hsla(0, 0%, 93%, 0.2);
+
+  /* Portfolio passthrough — accent. Default: table (dark mode). */
+  --bg: hsl(33, 18%, 12%);
+  --swatch: hsl(34, 50%, 60%);
+  --accent-hue: 34;
+}
+
+.arcade-root[data-appearance="dark"][data-accent="sky"] {
+  --bg: hsl(200, 22%, 8%);
+  --swatch: hsl(204, 50%, 70%);
+  --accent-hue: 204;
+}
+.arcade-root[data-appearance="dark"][data-accent="table"] {
+  --bg: hsl(33, 18%, 12%);
+  --swatch: hsl(34, 50%, 60%);
+  --accent-hue: 34;
+}
+.arcade-root[data-appearance="dark"][data-accent="portrait"] {
+  --bg: hsl(41, 14%, 10%);
+  --swatch: hsl(43, 22%, 62%);
+  --accent-hue: 43;
+}
+.arcade-root[data-appearance="dark"][data-accent="pizza"] {
+  --bg: hsl(8, 22%, 7%);
+  --swatch: hsl(15, 53%, 64%);
+  --accent-hue: 15;
+}
+.arcade-root[data-appearance="dark"][data-accent="vineyard"] {
+  --bg: hsl(88, 18%, 9%);
+  --swatch: hsl(90, 36%, 48%);
+  --accent-hue: 90;
+}
+
+/* Arcade derived tokens.
+ *
+ * Page background + marquee are TIED to --accent-hue / --swatch so the
+ * accent picker visibly recolors the room. Cabinet base + per-cabinet
+ * glow are still hardcoded for now — Phase 2 sibling-derives those.
+ */
+.arcade-root {
+  /* Page chrome — base stays near-black; the radial glow tints with accent. */
+  --arcade-bg: #06060a;
+  --arcade-bg-glow: hsl(var(--accent-hue), 55%, 11%);
+  --arcade-page-bg:
+    radial-gradient(ellipse at 50% 0%, var(--arcade-bg-glow) 0%, var(--arcade-bg) 55%),
+    var(--arcade-bg);
+
+  /* Cabinet base (per-demo hue still drives the cabinet's radial gradient
+   * directly via inline style — Phase 2 will sibling-derive that hue from
+   * --accent-hue). */
+  --arcade-cabinet-base: #050308;
+  --arcade-border: rgba(255, 255, 255, 0.08);
+
+  /* Text rungs (arcade-specific so they don't conflict with portfolio's
+   * --text-* tokens above). */
+  --arcade-text: #f5f0ff;
+  --arcade-text-dim-1: rgba(255, 255, 255, 0.85);
+  --arcade-text-dim-2: rgba(255, 255, 255, 0.55);
+  --arcade-text-dim-3: rgba(255, 255, 255, 0.45);
+  --arcade-text-faint: rgba(255, 255, 255, 0.25);
+
+  /* Status / signal — gold + green stay constant (identity colors). */
+  --arcade-hot: #ffd35a;
+  --arcade-hot-soft: rgba(255, 211, 90, 0.55);
+  --arcade-credit-green: #7bff8a;
+
+  /* Marquee — text uses the active swatch; glow + bg + border derive from
+   * accent-hue. The whole strip changes color with the accent. */
+  --arcade-marquee-text: var(--swatch);
+  --arcade-marquee-shadow-core: hsl(var(--accent-hue), 80%, 55%);
+  --arcade-marquee-glow: hsla(var(--accent-hue), 75%, 55%, 0.6);
+  --arcade-marquee-bg-top: hsla(var(--accent-hue), 70%, 50%, 0.18);
+  --arcade-marquee-bg-bot: hsla(var(--accent-hue), 70%, 30%, 0.05);
+  --arcade-marquee-border: hsla(var(--accent-hue), 70%, 50%, 0.3);
+
+  /* Per-cabinet status tags */
+  --arcade-tag-magenta: #ff7be5;
+  --arcade-tag-cyan: #7be5ff;
+
+  /* Chromatic aberration (cyan/red split on neon text) */
+  --arcade-chrom-cyan: rgba(0, 200, 255, 0.7);
+  --arcade-chrom-cyan-soft: rgba(0, 200, 255, 0.4);
+  --arcade-chrom-cyan-magenta: rgba(0, 200, 255, 0.35);
+  --arcade-chrom-red: rgba(255, 80, 80, 0.6);
+  --arcade-chrom-red-soft: rgba(255, 80, 80, 0.4);
+  --arcade-chrom-red-magenta: rgba(255, 80, 80, 0.35);
+
+  /* Vignette + scanline overlays */
+  --arcade-scanline-page: rgba(0, 0, 0, 0.18);
+  --arcade-scanline-tile: rgba(255, 255, 255, 0.04);
+  --arcade-vignette: rgba(0, 0, 0, 0.55);
+}
+
+/* Atomic theme transition — 500ms ease-in-out per portfolio convention.
+ * Applied to the root (page bg) and to elements whose color we know
+ * derives from the accent. Scoped tightly to avoid stomping framer
+ * animations on other elements. */
+.arcade-root {
+  transition: background 500ms ease-in-out;
+}
+.arcade-marquee,
+.arcade-marquee-text {
+  transition:
+    background 500ms ease-in-out,
+    color 500ms ease-in-out,
+    border-color 500ms ease-in-out,
+    text-shadow 500ms ease-in-out;
+}
