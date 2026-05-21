@@ -1,0 +1,103 @@
+/* Portfolio token system, scoped to the museum gallery container.
+ * Values copied verbatim from /Users/benyamron/Desktop/coding/portfolio/tokens.md
+ * — keep in sync if the portfolio palette ever changes.
+ */
+
+.museum-root {
+  /* Text colors are theme-independent — they only flip with appearance. */
+  --text-dark: hsl(0, 0%, 99%);
+  --text-medium: hsl(0, 0%, 90%);
+  --text-grey: hsl(240, 2%, 75%);
+  --text-light-grey: hsl(0, 0%, 40%);
+  --text-link: hsl(220, 54%, 81%);
+  --text-underline: hsla(0, 0%, 93%, 0.2);
+  --surface: hsl(0, 0%, 10%);
+  --border: hsl(0, 0%, 20%);
+}
+
+.museum-root[data-appearance="light"] {
+  --text-dark: hsl(0, 0%, 7%);
+  --text-medium: hsl(0, 0%, 20%);
+  --text-grey: hsl(240, 2%, 45%);
+  --text-light-grey: hsl(0, 0%, 70%);
+  --text-link: hsl(219, 49%, 53%);
+  --text-underline: hsla(0, 0%, 7%, 0.2);
+  --surface: hsl(0, 0%, 96%);
+  --border: hsl(0, 0%, 85%);
+}
+
+/* Dark appearance — accent backgrounds */
+.museum-root[data-appearance="dark"][data-accent="sky"] {
+  --bg: hsl(200, 22%, 8%);
+  --swatch: hsl(204, 50%, 70%);
+  --accent-hue: 204;
+}
+.museum-root[data-appearance="dark"][data-accent="table"] {
+  --bg: hsl(33, 18%, 12%);
+  --swatch: hsl(34, 50%, 60%);
+  --accent-hue: 34;
+}
+.museum-root[data-appearance="dark"][data-accent="portrait"] {
+  --bg: hsl(41, 14%, 10%);
+  --swatch: hsl(43, 22%, 62%);
+  --accent-hue: 43;
+}
+.museum-root[data-appearance="dark"][data-accent="pizza"] {
+  --bg: hsl(8, 22%, 7%);
+  --swatch: hsl(15, 53%, 64%);
+  --accent-hue: 15;
+}
+.museum-root[data-appearance="dark"][data-accent="vineyard"] {
+  --bg: hsl(88, 18%, 9%);
+  --swatch: hsl(90, 36%, 48%);
+  --accent-hue: 90;
+}
+
+/* Light appearance — accent backgrounds */
+.museum-root[data-appearance="light"][data-accent="sky"] {
+  --bg: hsl(200, 23%, 95%);
+  --swatch: hsl(204, 50%, 70%);
+  --accent-hue: 204;
+}
+.museum-root[data-appearance="light"][data-accent="table"] {
+  --bg: hsl(30, 17%, 91%);
+  --swatch: hsl(34, 50%, 60%);
+  --accent-hue: 34;
+}
+.museum-root[data-appearance="light"][data-accent="portrait"] {
+  --bg: hsl(39, 15%, 92%);
+  --swatch: hsl(43, 22%, 62%);
+  --accent-hue: 43;
+}
+.museum-root[data-appearance="light"][data-accent="pizza"] {
+  --bg: hsl(10, 30%, 96%);
+  --swatch: hsl(15, 53%, 64%);
+  --accent-hue: 15;
+}
+.museum-root[data-appearance="light"][data-accent="vineyard"] {
+  --bg: hsl(86, 18%, 93%);
+  --swatch: hsl(90, 36%, 48%);
+  --accent-hue: 90;
+}
+
+/* Museum-specific derived tokens */
+.museum-root[data-appearance="dark"] {
+  --plate-bg: rgba(255, 255, 255, 0.025);
+  --plate-bg-hover: rgba(255, 255, 255, 0.04);
+  --rule: hsl(0, 0%, 28%);
+  --rule-soft: hsla(0, 0%, 100%, 0.08);
+  --ink-faint: var(--text-light-grey);
+  /* Gentle vignette toward edges in dark mode for a "case" feel */
+  --vignette-stop-1: transparent;
+  --vignette-stop-2: hsla(0, 0%, 0%, 0.35);
+}
+
+.museum-root[data-appearance="light"] {
+  --plate-bg: hsla(0, 0%, 100%, 0.55);
+  --plate-bg-hover: hsla(0, 0%, 100%, 0.85);
+  --rule: hsl(0, 0%, 75%);
+  --rule-soft: hsla(0, 0%, 0%, 0.08);
+  --ink-faint: var(--text-light-grey);
+  --vignette-stop-1: transparent;
+  --vignette-stop-2: hsla(0, 0%, 0%, 0.05);
+}
