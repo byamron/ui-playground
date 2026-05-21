@@ -19,6 +19,7 @@ const STORAGE_ARCADE_AUDIO = "ui-playground:arcade-audio";
 const STORAGE_ARCADE_COIN_INSERT = "ui-playground:arcade-coin-insert";
 const STORAGE_ARCADE_REFILL = "ui-playground:arcade-refill";
 const STORAGE_ARCADE_HUE_SOURCE = "ui-playground:arcade-hue-source";
+const STORAGE_ARCADE_FONT = "ui-playground:arcade-font";
 
 // The shared appearance + accent vocabulary — same shape as the portfolio's
 // theme tokens. Museum has used these from day one; arcade now consumes
@@ -30,6 +31,11 @@ type ArcadeAudio = "on" | "off";
 type ArcadeCoinInsert = "tip" | "drop";
 type ArcadeRefill = "pop" | "drop";
 type ArcadeHueSource = "accent" | "demo";
+type ArcadeFont =
+  | "sf-mono"
+  | "jetbrains-mono"
+  | "ibm-plex-mono"
+  | "onest";
 
 // Numeric hue per accent (matches arcade-themes.css / tokens.md / portfolio).
 const ACCENT_HUES: Record<Accent, number> = {
@@ -99,6 +105,19 @@ function readArcadeHueSource(): ArcadeHueSource {
   return "accent";
 }
 
+function readArcadeFont(): ArcadeFont {
+  if (typeof window === "undefined") return "sf-mono";
+  const stored = window.localStorage.getItem(STORAGE_ARCADE_FONT);
+  if (
+    stored === "sf-mono" ||
+    stored === "jetbrains-mono" ||
+    stored === "ibm-plex-mono" ||
+    stored === "onest"
+  )
+    return stored;
+  return "sf-mono";
+}
+
 
 export function Gallery() {
   const [mode, setMode] = useState<GalleryMode>(readMode);
@@ -111,6 +130,7 @@ export function Gallery() {
   );
   const [refill, setRefill] = useState<ArcadeRefill>(readArcadeRefill);
   const [hueSource, setHueSource] = useState<ArcadeHueSource>(readArcadeHueSource);
+  const [arcadeFont, setArcadeFont] = useState<ArcadeFont>(readArcadeFont);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_MODE, mode);
@@ -133,6 +153,9 @@ export function Gallery() {
   useEffect(() => {
     window.localStorage.setItem(STORAGE_ARCADE_HUE_SOURCE, hueSource);
   }, [hueSource]);
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_ARCADE_FONT, arcadeFont);
+  }, [arcadeFont]);
 
   return (
     <DevPanel
@@ -200,6 +223,17 @@ export function Gallery() {
                   { label: "Per-demo", value: "demo" },
                 ]}
               />
+              <DevButtonGroup<ArcadeFont>
+                label="Font"
+                value={arcadeFont}
+                onChange={setArcadeFont}
+                options={[
+                  { label: "SF Mono", value: "sf-mono" },
+                  { label: "JetBrains", value: "jetbrains-mono" },
+                  { label: "IBM Plex", value: "ibm-plex-mono" },
+                  { label: "Onest", value: "onest" },
+                ]}
+              />
               <DevButtonGroup<ArcadeCoinInsert>
                 label="Insert"
                 value={coinInsert}
@@ -243,6 +277,7 @@ export function Gallery() {
           accent={accent}
           accentHue={ACCENT_HUES[accent]}
           hueSource={hueSource}
+          font={arcadeFont}
         />
       )}
       {mode === "curious" && <CuriousGallery />}

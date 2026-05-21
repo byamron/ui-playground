@@ -97,6 +97,11 @@ export type AccentName =
   | "pizza"
   | "vineyard";
 export type HueSource = "accent" | "demo";
+export type ArcadeFont =
+  | "sf-mono"
+  | "jetbrains-mono"
+  | "ibm-plex-mono"
+  | "onest";
 
 // Per-cabinet hue offsets from the accent. 16 entries, all within ±90°,
 // mixed analogous (small offsets) + slightly stretched (larger) so the
@@ -129,6 +134,7 @@ export function ArcadeGallery({
   accent,
   accentHue,
   hueSource,
+  font,
 }: {
   audio: boolean;
   coinInsert: CoinInsertVariant;
@@ -136,6 +142,7 @@ export function ArcadeGallery({
   accent: AccentName;
   accentHue: number;
   hueSource: HueSource;
+  font: ArcadeFont;
 }) {
   // Per-cabinet state, keyed by demo path
   const [states, setStates] = useState<Record<string, CabinetState>>(() =>
@@ -476,6 +483,7 @@ export function ArcadeGallery({
       className="arcade-root"
       data-appearance="dark"
       data-accent={accent}
+      data-arcade-font={font}
       style={{
         height: "100%",
         width: "100%",
@@ -483,7 +491,10 @@ export function ArcadeGallery({
         color: "var(--arcade-text)",
         overflowY: "auto",
         overflowX: "hidden",
-        fontFamily: MONO,
+        // Default font for the whole arcade follows the toggle. Data rows
+        // (PLAYS / CREDITS) and the coin "$" glyph override back to MONO
+        // inline because numeric readouts need to stay tabular regardless.
+        fontFamily: "var(--arcade-font)",
         position: "relative",
         cursor: drag ? "grabbing" : "auto",
         userSelect: drag ? "none" : "auto",
@@ -910,7 +921,7 @@ function CabinetFooter({
               justifyContent: "center",
               cursor: "pointer",
               color: "#0a0a0a",
-              fontFamily: MONO,
+              fontFamily: "var(--arcade-font)",
               fontSize: 11,
               fontWeight: 800,
               letterSpacing: "0.22em",
@@ -1085,7 +1096,7 @@ const CoinBag = memo(function CoinBag({
     >
       <div
         style={{
-          fontFamily: MONO,
+          fontFamily: "var(--arcade-font)",
           fontSize: 9,
           letterSpacing: "0.22em",
           color: "rgba(255,255,255,0.78)",
@@ -1216,7 +1227,7 @@ const CoinBag = memo(function CoinBag({
             justifyContent: "center",
             gap: 4,
             padding: "8px 10px 6px",
-            fontFamily: MONO,
+            fontFamily: "var(--arcade-font)",
             fontSize: 11,
             fontWeight: 800,
             letterSpacing: "0.24em",

@@ -118,6 +118,23 @@
   --arcade-vignette: rgba(0, 0, 0, 0.55);
 }
 
+/* Font family toggle. Inline `fontFamily: MONO` (the const) is preserved
+ * on data rows + coin glyph so those always stay mono regardless of the
+ * dev toggle (numeric readouts are functional, not editorial). All other
+ * text uses var(--arcade-font) so the toggle switches them in unison. */
+.arcade-root[data-arcade-font="sf-mono"] {
+  --arcade-font: "SF Mono", "JetBrains Mono", "Courier New", ui-monospace, monospace;
+}
+.arcade-root[data-arcade-font="jetbrains-mono"] {
+  --arcade-font: "JetBrains Mono", "SF Mono", "Courier New", ui-monospace, monospace;
+}
+.arcade-root[data-arcade-font="ibm-plex-mono"] {
+  --arcade-font: "IBM Plex Mono", "SF Mono", "Courier New", ui-monospace, monospace;
+}
+.arcade-root[data-arcade-font="onest"] {
+  --arcade-font: "Onest", "Inter", system-ui, sans-serif;
+}
+
 /* Atomic theme transition — 500ms ease-in-out per portfolio convention.
  * Applied to the root (page bg) and to elements whose color we know
  * derives from the accent. Scoped tightly to avoid stomping framer
