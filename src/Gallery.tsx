@@ -110,7 +110,7 @@ function readArcadeHueSource(): ArcadeHueSource {
 }
 
 function readArcadeFont(): ArcadeFont {
-  if (typeof window === "undefined") return "sf-mono";
+  if (typeof window === "undefined") return "ibm-plex-mono";
   const stored = window.localStorage.getItem(STORAGE_ARCADE_FONT);
   if (
     stored === "sf-mono" ||
@@ -119,7 +119,7 @@ function readArcadeFont(): ArcadeFont {
     stored === "onest"
   )
     return stored;
-  return "sf-mono";
+  return "ibm-plex-mono";
 }
 
 function readArcadeAppearance(): ArcadeAppearance {

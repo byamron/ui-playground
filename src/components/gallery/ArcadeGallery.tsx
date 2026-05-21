@@ -649,7 +649,6 @@ const CabinetTile = memo(function CabinetTile({
   // hover tells the user where to aim.
   const [slotHover, setSlotHover] = useState(false);
 
-  const playerNum = (index % 2) + 1;
   const glow = `hsl(${cabinetHue}, 80%, 60%)`;
   const glowDim = `hsl(${cabinetHue}, 80%, 50%)`;
 
@@ -771,7 +770,8 @@ const CabinetTile = memo(function CabinetTile({
         )}
       </AnimatePresence>
 
-      {/* PLAYS (data row — always mono, opts out of font toggle).
+      {/* PLAYS (data row — follows the active font toggle; `tabular-nums`
+       * keeps digits aligned regardless of family).
        * TODO(backend): hook up a real plays counter once the BE lands. */}
       <div
         className="arcade-data-row"
@@ -783,7 +783,6 @@ const CabinetTile = memo(function CabinetTile({
           letterSpacing: "0.16em",
           position: "relative",
           minHeight: 16,
-          fontFamily: MONO,
           fontVariantNumeric: "tabular-nums",
         }}
       >
@@ -798,7 +797,7 @@ const CabinetTile = memo(function CabinetTile({
         </span>
       </div>
 
-      {/* CREDITS (data row — always mono). */}
+      {/* CREDITS (data row — follows the active font toggle). */}
       <div
         className="arcade-data-row"
         style={{
@@ -810,7 +809,6 @@ const CabinetTile = memo(function CabinetTile({
           marginTop: 6,
           position: "relative",
           minHeight: 16,
-          fontFamily: MONO,
           fontVariantNumeric: "tabular-nums",
         }}
       >
@@ -869,7 +867,6 @@ const CabinetTile = memo(function CabinetTile({
         slotHover={slotHover}
         armed={armed}
         glow={glow}
-        playerNum={playerNum}
         onTap={() => onLaunch(demo.path)}
       />
     </article>
@@ -884,7 +881,6 @@ function CabinetFooter({
   slotHover,
   armed,
   glow,
-  playerNum,
   onTap,
 }: {
   path: string;
@@ -894,7 +890,6 @@ function CabinetFooter({
   slotHover: boolean;
   armed: boolean;
   glow: string;
-  playerNum: number;
   onTap: () => void;
 }) {
   const showStart = armed || state === "launching";
@@ -907,15 +902,15 @@ function CabinetFooter({
         position: "relative",
         marginTop: 18,
         paddingTop: 14,
-        borderTop: `1px solid ${
-          showStart ? glow : slotActive ? glow : "rgba(255,255,255,0.12)"
-        }`,
+        // Subtle structural divider — stays neutral regardless of slot
+        // hover / credited / launching state. Hot color is for the slot
+        // itself and the cabinet border, not for this line.
+        borderTop: "1px solid rgba(255,255,255,0.12)",
         display: "flex",
-        justifyContent: "space-between",
+        justifyContent: "flex-start",
         alignItems: "center",
         fontSize: 10,
         letterSpacing: "0.18em",
-        transition: "border-color 0.3s ease",
         minHeight: 42,
       }}
     >
@@ -1031,15 +1026,6 @@ function CabinetFooter({
           </motion.div>
         )}
       </AnimatePresence>
-      <span
-        style={{
-          color: "rgba(255,255,255,0.4)",
-          fontSize: 10,
-          letterSpacing: "0.18em",
-        }}
-      >
-        {playerNum}P
-      </span>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./global.css";
 import { Gallery } from "./Gallery";
+import { BackToGallery } from "./components/BackToGallery";
 import { WaterRipple } from "./demos/water-ripple/WaterRipple";
 import { GlassPull } from "./demos/glass-pull/GlassPull";
 import { MagneticButton } from "./demos/magnetic-button/MagneticButton";
@@ -29,6 +30,7 @@ import { PageTransition } from "./demos/page-transition/PageTransition";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
+      <BackToGallery />
       <Routes>
         <Route path="/" element={<Gallery />} />
         <Route path="/water-ripple" element={<WaterRipple />} />
