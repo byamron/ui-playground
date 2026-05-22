@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { bg, demoPalettes } from "../../palette";
+import { bg, demoPalettes } from "../../../palette";
 
 /**
  * Figpal Cursor — ported from portfolio's CustomCursor.tsx (figpal mode).

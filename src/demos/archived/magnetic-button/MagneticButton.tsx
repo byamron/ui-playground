@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from "react";
-import { bg, demoPalettes, HUES } from "../../palette";
+import { bg, demoPalettes, HUES } from "../../../palette";
 
 const BG = bg(demoPalettes["magnetic-button"]);
 
