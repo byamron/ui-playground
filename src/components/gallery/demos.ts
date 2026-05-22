@@ -87,16 +87,6 @@ export const galleryDemos: GalleryDemo[] = [
     genre: "TOOL · COLOR",
   },
   {
-    path: "/task-ranking",
-    title: "Task Ranking",
-    description: "Binary search pairwise comparison to prioritize tasks",
-    ...palette("task-ranking"),
-    family: "Algoricae",
-    catalogue: "ALG·001",
-    highScore: "192,777",
-    genre: "PUZZLE · LOGIC",
-  },
-  {
     path: "/figma-highfive",
     title: "Figma High-Five",
     description: "FigJam share modal with a very useful permission level",
