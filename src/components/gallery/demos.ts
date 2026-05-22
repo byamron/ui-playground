@@ -74,15 +74,6 @@ export const galleryDemos: GalleryDemo[] = [
     catalogue: "CHR·001",
   },
   {
-    path: "/task-ranking",
-    title: "Task Ranking",
-    description:
-      "Rank a list by feel. Binary-search pairwise picks build your order.",
-    ...palette("task-ranking"),
-    family: "Algoricae",
-    catalogue: "ALG·001",
-  },
-  {
     path: "/figma-highfive",
     title: "Figma High-Five",
     description:
