@@ -1,5 +1,5 @@
 import { useRef, useCallback } from "react";
-import { bg, demoPalettes, HUES, accent } from "../../palette";
+import { bg, demoPalettes, HUES, accent } from "../../../palette";
 
 const palette = demoPalettes["water-ripple"];
 const BG = bg(palette);

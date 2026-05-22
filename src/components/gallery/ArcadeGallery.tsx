@@ -22,9 +22,9 @@ import {
   COIN_DIAMETER,
 } from "./arcade/coinPhysics";
 import { arcadeAudio } from "./arcade/audio";
+import "./arcade/arcade-themes.css";
 
 const MONO = `"SF Mono", "JetBrains Mono", "Courier New", ui-monospace, monospace`;
-const ARCADE_BG = "#06060a";
 
 // Arcade-cabinet wall — drag a coin from the bag in the corner onto any
 // cabinet's slot to credit it, then tap to play.
@@ -90,6 +90,42 @@ const HOT = "#ffd35a"; // coin/credit yellow
 
 export type CoinInsertVariant = "tip" | "drop";
 export type RefillDirection = "pop" | "drop";
+export type AccentName =
+  | "table"
+  | "portrait"
+  | "sky"
+  | "pizza"
+  | "vineyard";
+export type HueSource = "accent" | "demo";
+export type ArcadeFont =
+  | "sf-mono"
+  | "jetbrains-mono"
+  | "ibm-plex-mono"
+  | "onest";
+export type ArcadeThemeControlsPlacement = "marquee" | "footer";
+
+const ALL_ACCENTS: { name: AccentName; hue: number }[] = [
+  { name: "table", hue: 34 },
+  { name: "portrait", hue: 43 },
+  { name: "sky", hue: 204 },
+  { name: "pizza", hue: 15 },
+  { name: "vineyard", hue: 90 },
+];
+
+// Per-cabinet hue offsets from the accent. 16 entries, all within ±90°,
+// mixed analogous (small offsets) + slightly stretched (larger) so the
+// cabinet wall reads as a cohesive family of variations on the active
+// accent. Same index always gets the same offset → consistent per-demo
+// identity across accent changes.
+const DEMO_OFFSETS: readonly number[] = [
+  0, -30, 30, -55, 55, -80, 80, 15,
+  -15, 42, -42, 70, -70, 22, -22, 60,
+];
+
+function siblingHue(accentHue: number, index: number): number {
+  const offset = DEMO_OFFSETS[index % DEMO_OFFSETS.length];
+  return (accentHue + offset + 360) % 360;
+}
 
 type ChipPresence = "present" | "missing";
 
@@ -104,10 +140,26 @@ export function ArcadeGallery({
   audio,
   coinInsert,
   refill,
+  accent,
+  accentHue,
+  hueSource,
+  font,
+  appearance,
+  themeControls,
+  onAccentChange,
+  onAppearanceChange,
 }: {
   audio: boolean;
   coinInsert: CoinInsertVariant;
   refill: RefillDirection;
+  accent: AccentName;
+  accentHue: number;
+  hueSource: HueSource;
+  font: ArcadeFont;
+  appearance: "dark" | "light";
+  themeControls: ArcadeThemeControlsPlacement;
+  onAccentChange: (accent: AccentName) => void;
+  onAppearanceChange: (appearance: "dark" | "light") => void;
 }) {
   // Per-cabinet state, keyed by demo path
   const [states, setStates] = useState<Record<string, CabinetState>>(() =>
@@ -423,6 +475,16 @@ export function ArcadeGallery({
     () => Object.values(states).some((s) => s === "idle"),
     [states]
   );
+  // Per-cabinet hue. In `accent` mode each cabinet is a sibling-offset of
+  // the active accent so the whole wall recolors together; in `demo` mode
+  // each cabinet keeps its hand-picked identity hue from demoPalettes.
+  const cabinetHues = useMemo(
+    () =>
+      galleryDemos.map((demo, i) =>
+        hueSource === "accent" ? siblingHue(accentHue, i) : demo.hue,
+      ),
+    [accentHue, hueSource]
+  );
   // "All credited" is the right time to offer RESET — once every cabinet has
   // received its coin and is showing TAP TO PLAY (or has just been launched).
   const allCredited = useMemo(
@@ -435,17 +497,21 @@ export function ArcadeGallery({
 
   return (
     <div
+      className="arcade-root"
+      data-appearance={appearance}
+      data-accent={accent}
+      data-arcade-font={font}
       style={{
         height: "100%",
         width: "100%",
-        background: `
-          radial-gradient(ellipse at 50% 0%, #1a0d2a 0%, ${ARCADE_BG} 55%),
-          ${ARCADE_BG}
-        `,
-        color: "#f5f0ff",
+        background: "var(--arcade-page-bg)",
+        color: "var(--arcade-text)",
         overflowY: "auto",
         overflowX: "hidden",
-        fontFamily: MONO,
+        // Default font for the whole arcade follows the toggle. Data rows
+        // (PLAYS / CREDITS) and the coin "$" glyph override back to MONO
+        // inline because numeric readouts need to stay tabular regardless.
+        fontFamily: "var(--arcade-font)",
         position: "relative",
         cursor: drag ? "grabbing" : "auto",
         userSelect: drag ? "none" : "auto",
@@ -454,7 +520,17 @@ export function ArcadeGallery({
       <ScreenOverlay />
 
       <div style={{ position: "relative", padding: "0 32px 96px" }}>
-        <Marquee />
+        <Marquee>
+          {themeControls === "marquee" && (
+            <ThemeControls
+              accent={accent}
+              appearance={appearance}
+              onAccentChange={onAccentChange}
+              onAppearanceChange={onAppearanceChange}
+              variant="marquee"
+            />
+          )}
+        </Marquee>
         <div
           style={{
             maxWidth: 1280,
@@ -469,13 +545,24 @@ export function ArcadeGallery({
               key={demo.path}
               demo={demo}
               index={i}
+              cabinetHue={cabinetHues[i]}
               state={states[demo.path]}
               slotActive={drag?.hoveredPath === demo.path && states[demo.path] === "idle"}
               onLaunch={launch}
             />
           ))}
         </div>
-        <Footer />
+        <Footer>
+          {themeControls === "footer" && (
+            <ThemeControls
+              accent={accent}
+              appearance={appearance}
+              onAccentChange={onAccentChange}
+              onAppearanceChange={onAppearanceChange}
+              variant="footer"
+            />
+          )}
+        </Footer>
       </div>
 
       <CoinBag
@@ -545,12 +632,14 @@ export function ArcadeGallery({
 const CabinetTile = memo(function CabinetTile({
   demo,
   index,
+  cabinetHue,
   state,
   slotActive,
   onLaunch,
 }: {
   demo: (typeof galleryDemos)[number];
   index: number;
+  cabinetHue: number;
   state: CabinetState;
   slotActive: boolean;
   onLaunch: (path: string) => void;
@@ -560,9 +649,8 @@ const CabinetTile = memo(function CabinetTile({
   // hover tells the user where to aim.
   const [slotHover, setSlotHover] = useState(false);
 
-  const playerNum = (index % 2) + 1;
-  const glow = `hsl(${demo.hue}, 80%, 60%)`;
-  const glowDim = `hsl(${demo.hue}, 80%, 50%)`;
+  const glow = `hsl(${cabinetHue}, 80%, 60%)`;
+  const glowDim = `hsl(${cabinetHue}, 80%, 50%)`;
 
   // "Lit" stays on through reset's CRT collapse so the powering-off animation
   // has something to collapse *from*. The transition back to idle's dim
@@ -575,13 +663,14 @@ const CabinetTile = memo(function CabinetTile({
 
   return (
     <article
+      className="arcade-cabinet"
       onMouseEnter={() => setSlotHover(true)}
       onMouseLeave={() => setSlotHover(false)}
       style={{
         position: "relative",
         background: `
-          radial-gradient(ellipse at 50% 30%, hsla(${demo.hue}, 50%, 20%, 0.8) 0%, hsla(${demo.hue}, 60%, 8%, 0.95) 70%),
-          #050308
+          radial-gradient(ellipse at 50% 30%, hsla(${cabinetHue}, 50%, 20%, 0.8) 0%, hsla(${cabinetHue}, 60%, 8%, 0.95) 70%),
+          var(--arcade-cabinet-base)
         `,
         border: `1px solid ${
           lit || slotActive ? glow : "rgba(255,255,255,0.08)"
@@ -592,7 +681,10 @@ const CabinetTile = memo(function CabinetTile({
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        transition: "border-color 0.2s ease",
+        // Per-property transition: snappy slot-hover border tick (0.2s),
+        // smooth accent cross-fade on bg + glow (500ms).
+        transition:
+          "border-color 0.2s ease, background 500ms ease-in-out, box-shadow 500ms ease-in-out",
         boxShadow: lit
           ? `0 0 32px ${glow}88, inset 0 0 48px ${glowDim}55`
           : slotActive
@@ -678,50 +770,36 @@ const CabinetTile = memo(function CabinetTile({
         )}
       </AnimatePresence>
 
-      {/* Top status bar */}
+      {/* PLAYS (data row — follows the active font toggle; `tabular-nums`
+       * keeps digits aligned regardless of family).
+       * TODO(backend): hook up a real plays counter once the BE lands. */}
       <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          fontSize: 9,
-          letterSpacing: "0.18em",
-          color: "rgba(255,255,255,0.5)",
-          position: "relative",
-        }}
-      >
-        <span style={{ color: "#ff7be5" }}>
-          CAB.{String(index + 1).padStart(2, "0")}
-        </span>
-        <span style={{ color: "#7be5ff" }}>{demo.genre}</span>
-      </div>
-
-      {/* HIGH SCORE */}
-      <div
+        className="arcade-data-row"
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "baseline",
           fontSize: 10,
           letterSpacing: "0.16em",
-          marginTop: 14,
           position: "relative",
           minHeight: 16,
+          fontVariantNumeric: "tabular-nums",
         }}
       >
-        <span style={{ color: "rgba(255,255,255,0.45)" }}>HIGH SCORE</span>
+        <span style={{ color: "rgba(255,255,255,0.45)" }}>PLAYS</span>
         <span
           style={{
             fontWeight: 700,
-            color: HOT,
-            textShadow: "0 0 6px rgba(255, 211, 90, 0.6)",
-            fontVariantNumeric: "tabular-nums",
+            color: "rgba(255,255,255,0.45)",
           }}
         >
-          {demo.highScore}
+          0
         </span>
       </div>
+
+      {/* CREDITS (data row — follows the active font toggle). */}
       <div
+        className="arcade-data-row"
         style={{
           display: "flex",
           justifyContent: "space-between",
@@ -731,6 +809,7 @@ const CabinetTile = memo(function CabinetTile({
           marginTop: 6,
           position: "relative",
           minHeight: 16,
+          fontVariantNumeric: "tabular-nums",
         }}
       >
         <span style={{ color: "rgba(255,255,255,0.45)" }}>CREDITS</span>
@@ -739,7 +818,6 @@ const CabinetTile = memo(function CabinetTile({
             fontWeight: 700,
             color: lit ? "#7bff8a" : "rgba(255,255,255,0.25)",
             textShadow: lit ? "0 0 6px rgba(123, 255, 138, 0.7)" : "none",
-            fontVariantNumeric: "tabular-nums",
             transition: "color 0.3s ease",
           }}
         >
@@ -747,37 +825,48 @@ const CabinetTile = memo(function CabinetTile({
         </span>
       </div>
 
-      {/* Title */}
-      <h2
-        style={{
-          position: "relative",
-          marginTop: "auto",
-          paddingTop: 20,
-          fontSize: 22,
-          fontWeight: 800,
-          letterSpacing: "0.04em",
-          lineHeight: 1.05,
-          textTransform: "uppercase",
-          color: lit ? "#ffffff" : "rgba(255,255,255,0.85)",
-          textShadow: lit
-            ? `0 0 10px ${glow}, 0 0 22px ${glow}aa, 2px 0 0 rgba(0, 200, 255, 0.7), -2px 0 0 rgba(255, 80, 80, 0.6)`
-            : `1px 0 0 rgba(0, 200, 255, 0.4), -1px 0 0 rgba(255, 80, 80, 0.35)`,
-          transition: "text-shadow 0.3s ease, color 0.3s ease",
-        }}
-      >
-        {demo.title}
-      </h2>
+      {/* Title + description — pushed to bottom of the card. */}
+      <div style={{ marginTop: "auto", paddingTop: 20, position: "relative" }}>
+        <h2
+          style={{
+            fontSize: 22,
+            fontWeight: 800,
+            letterSpacing: "0.04em",
+            lineHeight: 1.05,
+            textTransform: "uppercase",
+            margin: 0,
+            color: lit ? "#ffffff" : "var(--arcade-text-dim-1)",
+            textShadow: lit
+              ? `0 0 10px ${glow}, 0 0 22px ${glow}aa, 2px 0 0 var(--arcade-chrom-cyan), -2px 0 0 var(--arcade-chrom-red)`
+              : `1px 0 0 var(--arcade-chrom-cyan-soft), -1px 0 0 var(--arcade-chrom-red-soft)`,
+            transition: "text-shadow 0.3s ease, color 0.3s ease",
+          }}
+        >
+          {demo.title}
+        </h2>
+        <p
+          style={{
+            margin: "8px 0 0",
+            fontSize: 12,
+            lineHeight: 1.35,
+            letterSpacing: "0.02em",
+            color: "var(--arcade-text-dim-2)",
+            textTransform: "none",
+          }}
+        >
+          {demo.description}
+        </p>
+      </div>
 
       {/* Footer — slot OR tap-to-play button */}
       <CabinetFooter
         path={demo.path}
-        hue={demo.hue}
+        hue={cabinetHue}
         state={state}
         slotActive={slotActive}
         slotHover={slotHover}
         armed={armed}
         glow={glow}
-        playerNum={playerNum}
         onTap={() => onLaunch(demo.path)}
       />
     </article>
@@ -792,7 +881,6 @@ function CabinetFooter({
   slotHover,
   armed,
   glow,
-  playerNum,
   onTap,
 }: {
   path: string;
@@ -802,7 +890,6 @@ function CabinetFooter({
   slotHover: boolean;
   armed: boolean;
   glow: string;
-  playerNum: number;
   onTap: () => void;
 }) {
   const showStart = armed || state === "launching";
@@ -815,15 +902,15 @@ function CabinetFooter({
         position: "relative",
         marginTop: 18,
         paddingTop: 14,
-        borderTop: `1px solid ${
-          showStart ? glow : slotActive ? glow : "rgba(255,255,255,0.12)"
-        }`,
+        // Subtle structural divider — stays neutral regardless of slot
+        // hover / credited / launching state. Hot color is for the slot
+        // itself and the cabinet border, not for this line.
+        borderTop: "1px solid rgba(255,255,255,0.12)",
         display: "flex",
-        justifyContent: "space-between",
+        justifyContent: "flex-start",
         alignItems: "center",
         fontSize: 10,
         letterSpacing: "0.18em",
-        transition: "border-color 0.3s ease",
         minHeight: 42,
       }}
     >
@@ -866,7 +953,7 @@ function CabinetFooter({
               justifyContent: "center",
               cursor: "pointer",
               color: "#0a0a0a",
-              fontFamily: MONO,
+              fontFamily: "var(--arcade-font)",
               fontSize: 11,
               fontWeight: 800,
               letterSpacing: "0.22em",
@@ -920,7 +1007,7 @@ function CabinetFooter({
                     ? "#fff"
                     : slotHinted
                       ? "#ffffff"
-                      : "#7be5ff",
+                      : "var(--arcade-tag-cyan)",
                 textShadow:
                   slotActive || state === "inserting"
                     ? `0 0 8px ${glow}, 0 0 14px ${glow}aa`
@@ -939,15 +1026,6 @@ function CabinetFooter({
           </motion.div>
         )}
       </AnimatePresence>
-      <span
-        style={{
-          color: "rgba(255,255,255,0.4)",
-          fontSize: 10,
-          letterSpacing: "0.18em",
-        }}
-      >
-        {playerNum}P
-      </span>
     </div>
   );
 }
@@ -1028,23 +1106,21 @@ const CoinBag = memo(function CoinBag({
         // Floating HUD panel — gives the label something solid to read
         // against and groups the bag + JACKPOT visually as one unit.
         padding: "12px 14px 14px",
-        background:
-          "linear-gradient(180deg, rgba(14, 8, 20, 0.78) 0%, rgba(6, 4, 10, 0.85) 100%)",
+        background: "var(--arcade-bag-panel-bg)",
         backdropFilter: "blur(14px)",
         WebkitBackdropFilter: "blur(14px)",
-        border: "1px solid rgba(255, 211, 90, 0.16)",
+        border: "1px solid var(--arcade-bag-panel-border)",
         borderRadius: 12,
-        boxShadow:
-          "0 8px 28px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255, 211, 90, 0.08)",
+        boxShadow: "var(--arcade-bag-panel-shadow)",
         pointerEvents: "none", // children opt in
       }}
     >
       <div
         style={{
-          fontFamily: MONO,
+          fontFamily: "var(--arcade-font)",
           fontSize: 9,
           letterSpacing: "0.22em",
-          color: "rgba(255,255,255,0.78)",
+          color: "var(--arcade-bag-label)",
           textAlign: "center",
           lineHeight: 1.5,
         }}
@@ -1172,7 +1248,7 @@ const CoinBag = memo(function CoinBag({
             justifyContent: "center",
             gap: 4,
             padding: "8px 10px 6px",
-            fontFamily: MONO,
+            fontFamily: "var(--arcade-font)",
             fontSize: 11,
             fontWeight: 800,
             letterSpacing: "0.24em",
@@ -1862,8 +1938,7 @@ function ScreenOverlay() {
           position: "fixed",
           inset: 0,
           pointerEvents: "none",
-          background:
-            "repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0px, rgba(0,0,0,0.18) 1px, transparent 2px, transparent 3px)",
+          background: `repeating-linear-gradient(0deg, var(--arcade-scanline-page) 0px, var(--arcade-scanline-page) 1px, transparent 2px, transparent 3px)`,
           zIndex: 50,
           animation: "arcadeFlicker 6s ease-in-out infinite",
         }}
@@ -1874,8 +1949,7 @@ function ScreenOverlay() {
           position: "fixed",
           inset: 0,
           pointerEvents: "none",
-          background:
-            "radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.55) 100%)",
+          background: `radial-gradient(ellipse at center, transparent 50%, var(--arcade-vignette) 100%)`,
           zIndex: 51,
         }}
       />
@@ -1883,33 +1957,53 @@ function ScreenOverlay() {
   );
 }
 
-function Marquee() {
+function Marquee({ children }: { children?: React.ReactNode }) {
   const tag = "★ UI PLAYGROUND ★ INSERT COIN TO PLAY ★ ";
   const longTag = tag.repeat(8);
   return (
     <div
+      className="arcade-marquee"
       style={{
         position: "relative",
         padding: "20px 0",
         margin: "0 -32px",
         background:
-          "linear-gradient(180deg, rgba(255, 60, 180, 0.15) 0%, rgba(60, 0, 80, 0.05) 100%)",
-        borderTop: "1px solid rgba(255, 60, 180, 0.3)",
-        borderBottom: "1px solid rgba(255, 60, 180, 0.3)",
+          "linear-gradient(180deg, var(--arcade-marquee-bg-top) 0%, var(--arcade-marquee-bg-bot) 100%)",
+        borderTop: "1px solid var(--arcade-marquee-border)",
+        borderBottom: "1px solid var(--arcade-marquee-border)",
         overflow: "hidden",
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
       }}
     >
+      {children && (
+        <div
+          style={{
+            flex: "0 0 auto",
+            padding: "0 16px 0 24px",
+            zIndex: 1,
+            // Soft gradient to fade the scrolling text behind the controls.
+            background:
+              "linear-gradient(90deg, var(--arcade-marquee-bg-top) 70%, transparent 100%)",
+          }}
+        >
+          {children}
+        </div>
+      )}
       <div
+        className="arcade-marquee-text"
         style={{
+          flex: "1 1 auto",
           whiteSpace: "nowrap",
           display: "inline-block",
           animation: "marqueeScroll 60s linear infinite",
           fontSize: 16,
           fontWeight: 700,
           letterSpacing: "0.2em",
-          color: "#ff7be5",
+          color: "var(--arcade-marquee-text)",
           textShadow:
-            "0 0 4px #ff3cb4, 0 0 12px rgba(255, 60, 180, 0.6), 2px 0 0 rgba(0, 200, 255, 0.4), -2px 0 0 rgba(255, 80, 80, 0.4)",
+            "0 0 4px var(--arcade-marquee-shadow-core), 0 0 12px var(--arcade-marquee-glow), 2px 0 0 var(--arcade-chrom-cyan-soft), -2px 0 0 var(--arcade-chrom-red-soft)",
         }}
       >
         {longTag}
@@ -1919,23 +2013,113 @@ function Marquee() {
   );
 }
 
-function Footer() {
+function Footer({ children }: { children?: React.ReactNode }) {
   return (
     <div
       style={{
         maxWidth: 1280,
         margin: "48px auto 0",
         padding: "20px 0",
-        borderTop: "1px solid rgba(255,255,255,0.08)",
+        borderTop: "1px solid var(--arcade-border)",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
+        gap: 24,
         fontSize: 10,
         letterSpacing: "0.18em",
-        color: "rgba(255,255,255,0.45)",
+        color: "var(--arcade-text-dim-3)",
       }}
     >
       <span>UI PLAYGROUND ARCADE © 2026</span>
+      {children}
+    </div>
+  );
+}
+
+// Compact theme controls — 5 accent dots + sun/moon appearance toggle.
+// Two visual variants matching the placement (`marquee` is on neon
+// background, `footer` is on the page bg).
+function ThemeControls({
+  accent,
+  appearance,
+  onAccentChange,
+  onAppearanceChange,
+  variant,
+}: {
+  accent: AccentName;
+  appearance: "dark" | "light";
+  onAccentChange: (accent: AccentName) => void;
+  onAppearanceChange: (appearance: "dark" | "light") => void;
+  variant: "marquee" | "footer";
+}) {
+  const dotSize = variant === "marquee" ? 12 : 10;
+  const labelColor =
+    variant === "marquee"
+      ? "var(--arcade-marquee-text)"
+      : "var(--arcade-text-dim-3)";
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        fontSize: 9,
+        letterSpacing: "0.22em",
+        color: labelColor,
+        textTransform: "uppercase",
+        fontFamily: "var(--arcade-font)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {ALL_ACCENTS.map((a) => {
+          const active = a.name === accent;
+          return (
+            <button
+              key={a.name}
+              type="button"
+              aria-label={`Accent: ${a.name}`}
+              aria-pressed={active}
+              onClick={() => onAccentChange(a.name)}
+              style={{
+                width: dotSize,
+                height: dotSize,
+                borderRadius: "50%",
+                background: `hsl(${a.hue}, 50%, 60%)`,
+                border: active
+                  ? `2px solid var(--arcade-hot)`
+                  : `1px solid rgba(127,127,127,0.45)`,
+                padding: 0,
+                cursor: "pointer",
+                outline: "none",
+                transition: "transform 0.18s ease, border-color 0.18s ease",
+                transform: active ? "scale(1.18)" : "scale(1)",
+                boxShadow: active
+                  ? "0 0 8px rgba(255, 211, 90, 0.6)"
+                  : "none",
+              }}
+            />
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        aria-label={`Appearance: ${appearance === "dark" ? "switch to light" : "switch to dark"}`}
+        onClick={() => onAppearanceChange(appearance === "dark" ? "light" : "dark")}
+        style={{
+          fontFamily: "var(--arcade-font)",
+          fontSize: 10,
+          letterSpacing: "0.22em",
+          color: labelColor,
+          background: "transparent",
+          border: "1px solid currentColor",
+          borderRadius: 4,
+          padding: "3px 8px",
+          cursor: "pointer",
+          textTransform: "uppercase",
+        }}
+      >
+        {appearance === "dark" ? "DARK" : "LIGHT"}
+      </button>
     </div>
   );
 }

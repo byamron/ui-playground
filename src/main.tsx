@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./global.css";
 import { Gallery } from "./Gallery";
+import { BackToGallery } from "./components/BackToGallery";
 import { GlassPull } from "./demos/glass-pull/GlassPull";
 import { FisheyeText } from "./demos/fisheye-text/FisheyeText";
 import { CursorMorph } from "./demos/cursor-morph/CursorMorph";
@@ -24,6 +25,7 @@ import { PageTransition } from "./demos/page-transition/PageTransition";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
+      <BackToGallery />
       <Routes>
         <Route path="/" element={<Gallery />} />
         <Route path="/glass-pull" element={<GlassPull />} />
