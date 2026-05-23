@@ -189,6 +189,17 @@ export const galleryDemos: GalleryDemo[] = [
     highScore: "199,802",
     genre: "ACTION · TRANSITION",
   },
+  {
+    path: "/git-toggle",
+    title: "Git Toggle",
+    description:
+      "Flip a toggle by opening a PR, passing CI, getting a review, and merging to main",
+    ...palette("git-toggle"),
+    family: "Sorenidae",
+    catalogue: "SOR·006",
+    highScore: "147,283",
+    genre: "GAG · MOCK-UI",
+  },
 ];
 
 const ROMAN = [
