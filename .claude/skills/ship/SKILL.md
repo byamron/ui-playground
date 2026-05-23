@@ -1,8 +1,11 @@
 ---
 name: ship
 description: Commit all staged changes, push the current branch, and open a pull request against main.
-user_invocable: true
+disable-model-invocation: true
+allowed-tools: Bash(git add *) Bash(git commit *) Bash(git push *) Bash(git status *) Bash(git diff *) Bash(git log *) Bash(gh pr *)
 ---
+
+# Ship
 
 Commit all staged changes with a conventional-style commit message derived from recent work. Push the current branch to origin. Then open a pull request against `main` using the GitHub CLI (`gh pr create`).
 

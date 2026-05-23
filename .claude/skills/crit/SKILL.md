@@ -1,7 +1,6 @@
 ---
 name: crit
 description: Run a multi-perspective craft review of a demo against the project quality bar. Produces a structured rubric evaluation from four senior/staff-level reviewers.
-user_invocable: true
 ---
 
 # Craft Review
