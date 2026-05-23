@@ -44,7 +44,31 @@ const COLOR = {
 // TuneButton — shared toggle, same appearance in both positions
 // ---------------------------------------------------------------------------
 
-function TuneButton({ open, onClick }: { open: boolean; onClick: () => void }) {
+function TuneButton({
+  open,
+  onClick,
+  elevated = false,
+}: {
+  open: boolean;
+  onClick: () => void;
+  elevated?: boolean;
+}) {
+  // The closed-state button floats over the demo on any background, so it
+  // needs a solid dark-glass treatment to stay legible (white text on light
+  // demo bgs is invisible). Inside the panel, the subtle treatment blends
+  // with the panel's own surface.
+  const surface = elevated
+    ? {
+        background: "rgba(20, 20, 22, 0.72)",
+        border: "1px solid rgba(255, 255, 255, 0.14)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+        boxShadow: "0 4px 14px rgba(0, 0, 0, 0.25)",
+      }
+    : {
+        background: "rgba(255,255,255,0.04)",
+        border: `1px solid ${PANEL.border}`,
+      };
   return (
     <motion.button
       onClick={onClick}
@@ -53,8 +77,7 @@ function TuneButton({ open, onClick }: { open: boolean; onClick: () => void }) {
       whileHover={{ scale: 1.04 }}
       whileTap={{ scale: 0.96 }}
       style={{
-        background: "rgba(255,255,255,0.04)",
-        border: `1px solid ${PANEL.border}`,
+        ...surface,
         borderRadius: 10,
         padding: "7px 12px",
         color: COLOR.primary,
@@ -211,7 +234,7 @@ export function DevPanel({
           animate={{ opacity: 1, scale: 1 }}
           style={{ position: "fixed", bottom: 16, right: 16, zIndex: 100 }}
         >
-          <TuneButton open={false} onClick={() => setOpen(true)} />
+          <TuneButton open={false} onClick={() => setOpen(true)} elevated />
         </motion.div>
       )}
     </div>
