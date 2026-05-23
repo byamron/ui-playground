@@ -20,6 +20,7 @@ import { CompanionZoo } from "./demos/companion-zoo/CompanionZoo";
 import { ColorHoldPick } from "./demos/color-hold-pick/ColorHoldPick";
 import { GithubSparkline } from "./demos/github-sparkline/GithubSparkline";
 import { PageTransition } from "./demos/page-transition/PageTransition";
+import { GitToggle } from "./demos/git-toggle/GitToggle";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -43,6 +44,7 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/color-hold-pick" element={<ColorHoldPick />} />
         <Route path="/github-sparkline" element={<GithubSparkline />} />
         <Route path="/page-transition" element={<PageTransition />} />
+        <Route path="/git-toggle" element={<GitToggle />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>

@@ -39,6 +39,7 @@ Inventory of every demo in the repo, plus the release roadmap for social.
 | 9 | Fisheye Text | `/fisheye-text` | Craft | — | In progress |
 | 10 | Spotify DJ Call-In | `/spotify-dj` | Witty | @Soren, @Spotify | In progress |
 | 11 | Spotify Wrapped for Ads | `/spotify-wrapped-ads` | Witty | @Soren, @Spotify | In progress |
+| 12 | Git Toggle | `/git-toggle` | Witty | @GitHub | In progress |
 | flex | Companion Zoo | `/companion-zoo` | Witty | — | Deferred |
 
 Ordering principles: open with untagged craft to keep building profile depth, then introduce @Soren/@Figma at #3 to break the craft streak before the two strongest tagged crafts (@GitHub, @Gavin Nelson) close out the Ready batch. Spotify Wrapped is held for the finale.
