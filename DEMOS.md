@@ -2,6 +2,12 @@
 
 Inventory of every demo in the repo, plus the release roadmap for social.
 
+The production Arcade ships from `/Users/benyamron/dev/portfolio` at
+`benyamron.com/arcade`. To promote a Ready demo to the Arcade, see
+`docs/promote-demo-to-arcade.md`. The architectural relationship
+between the two repos is documented in `CLAUDE.md` under
+"Two-repo workflow."
+
 ## Statuses
 
 - **Released** — already posted publicly.

@@ -56,8 +56,37 @@ When the user gives a craft correction (spacing, timing, color, feel), implement
 
 For non-trivial work (new demo, significant refactor, new infrastructure), briefly state your intended approach and wait for confirmation before writing code. One or two sentences is enough. For larger scope, use plan mode. This does not apply to small fixes or tweaks.
 
+## Two-repo workflow
+
+This repo (ui-playground) is the experimental workshop. New demos get
+built, tuned, and iterated on here regardless of status — finished,
+in progress, archived, internal. The Museum, Arcade, and Cursor
+Curious gallery variants and the wrapping dev panel exist for that
+exploration.
+
+The portfolio repo (`/Users/benyamron/dev/portfolio`) ships the
+production Arcade at `benyamron.com/arcade` — Ready/Released demos
+only, the Arcade gallery alone, no mode-switcher panel wrapping the
+shell. Demo-internal dev panels stay in production.
+
+Both repos are first-class with different roles in the pipeline:
+
+- **Build/iterate here.** Behavior changes and bugs in a demo
+  originate as fixes here, then port forward to portfolio.
+- **Polish/ship there.** Production-only behavior (the `/arcade`
+  chrome bypass, redirects, the home-page project card) lives only
+  in portfolio.
+- **Drift handling.** If a demo bug surfaces in production but
+  this repo's version has drifted (e.g., v2 in progress), port
+  just the minimal fix to portfolio and leave a TODO to reconcile
+  when the next playground version graduates.
+
+When a demo's status in `DEMOS.md` flips to **Ready**, promote it to
+the portfolio Arcade. See `docs/promote-demo-to-arcade.md` for the
+per-demo playbook.
+
 ## Context
 
 - Plan and roadmap: `.context/plan.md` and `.context/iteration-roadmap.md`
-- Portfolio site (for backports): `/Users/benyamron/Desktop/coding/portfolio-site`
-- Language app (slide-to-unlock source): `/Users/benyamron/Desktop/coding/language-app`
+- Portfolio (production Arcade): `/Users/benyamron/dev/portfolio`
+- Language app (slide-to-unlock source): `/Users/benyamron/dev/language-app`
