@@ -154,6 +154,15 @@ export const galleryDemos: GalleryDemo[] = [
     family: "Transitiones",
     catalogue: "TRN·001",
   },
+  {
+    path: "/git-toggle",
+    title: "Git Toggle",
+    description:
+      "Flip a setting by opening a PR, passing CI, getting a review, and merging to main.",
+    ...palette("git-toggle"),
+    family: "Sorenidae",
+    catalogue: "SOR·006",
+  },
 ];
 
 const ROMAN = [
