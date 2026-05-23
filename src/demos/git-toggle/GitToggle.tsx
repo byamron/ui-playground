@@ -1754,7 +1754,6 @@ function MergeSplitButton({
         type="button"
         onClick={onClickMain}
         disabled={disabled}
-        whileHover={disabled ? {} : { y: -1 }}
         whileTap={disabled ? {} : { scale: 0.98 }}
         style={{
           padding: "5px 14px",
@@ -1770,6 +1769,13 @@ function MergeSplitButton({
           opacity: disabled ? 0.5 : 1,
           whiteSpace: "nowrap",
           height: 28,
+          transition: "background 0.12s",
+        }}
+        onMouseEnter={(e) => {
+          if (!disabled) e.currentTarget.style.background = GH.greenBtnHover;
+        }}
+        onMouseLeave={(e) => {
+          if (!disabled) e.currentTarget.style.background = GH.greenBtn;
         }}
       >
         {current.main}
@@ -1793,6 +1799,13 @@ function MergeSplitButton({
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
+          transition: "background 0.12s",
+        }}
+        onMouseEnter={(e) => {
+          if (!disabled) e.currentTarget.style.background = GH.greenBtnHover;
+        }}
+        onMouseLeave={(e) => {
+          if (!disabled) e.currentTarget.style.background = GH.greenBtn;
         }}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
