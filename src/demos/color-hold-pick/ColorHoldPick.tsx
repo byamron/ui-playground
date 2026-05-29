@@ -1,7 +1,9 @@
 import { useState, useRef, useLayoutEffect, useEffect, useCallback } from "react";
+import { resetBackTint, setBackTint } from "../../components/chromeControl";
 import {
   AnimatePresence,
   motion,
+  useAnimationControls,
   useMotionValue,
   useMotionTemplate,
   useTransform,
@@ -282,8 +284,27 @@ function Swatch({
   ariaLabel: string;
   children?: React.ReactNode;
 }) {
+  const controls = useAnimationControls();
+  const wasSelected = useRef(selected);
+  useEffect(() => {
+    if (selected && !wasSelected.current) {
+      controls.start({
+        scale: [1, 1.08, 1],
+        transition: {
+          duration: 0.38,
+          times: [0, 0.32, 1],
+          ease: [0.2, 0.8, 0.2, 1],
+        },
+      });
+    }
+    wasSelected.current = selected;
+  }, [selected, controls]);
+
   return (
-    <button
+    <motion.button
+      animate={controls}
+      whileTap={{ scale: 0.94 }}
+      transition={{ type: "spring", stiffness: 520, damping: 30 }}
       onClick={onClick}
       aria-label={ariaLabel}
       aria-pressed={selected}
@@ -308,7 +329,7 @@ function Swatch({
       }}
     >
       {children}
-    </button>
+    </motion.button>
   );
 }
 
@@ -486,6 +507,11 @@ export function ColorHoldPick() {
   // conic gradient for a beat, inviting the user to hold instead of tap.
   const jiggleRotate = useMotionValue(0);
 
+  // Handle scale — driven imperatively so press-down squish, picker entrance,
+  // and commit pulse all share the same scale channel without fighting an
+  // animate-prop target.
+  const handleScale = useMotionValue(1);
+
   // Brush trail — fading color ghosts emitted behind the handle during fast
   // drags. Throttled by TRAIL_EMIT_INTERVAL_MS and gated on smoothSpeed.
   type TrailNode = { id: number; x: number; y: number; color: string };
@@ -511,6 +537,15 @@ export function ColorHoldPick() {
   // legacy theme-color meta (for iOS 15-25 and Android Chrome).
   const tintTopRef = useRef<HTMLDivElement | null>(null);
   const tintBottomRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    setBackTint(tokens.text);
+  }, [tokens.text]);
+  useEffect(() => {
+    return () => {
+      resetBackTint();
+    };
+  }, []);
+
   useEffect(() => {
     document.documentElement.style.setProperty("--safari-tint", appColor);
     document.body.style.backgroundColor = appColor;
@@ -592,6 +627,14 @@ export function ColorHoldPick() {
       pressOrigin.current = { x: e.clientX, y: e.clientY };
       movedRef.current = false;
 
+      // Press-down squish — matches the swatch idiom so the handle feels
+      // like the same family of control as the presets.
+      fmAnimate(handleScale, 0.94, {
+        type: "spring",
+        stiffness: 600,
+        damping: 32,
+      });
+
       let entered = false;
       let holdTimer: number | null = null;
 
@@ -614,6 +657,11 @@ export function ColorHoldPick() {
         );
         setSelected("custom");
         setPicking(true);
+        fmAnimate(handleScale, 1.18, {
+          type: "spring",
+          stiffness: 420,
+          damping: 28,
+        });
       };
 
       holdTimer = window.setTimeout(() => {
@@ -676,6 +724,12 @@ export function ColorHoldPick() {
 
         if (!entered) {
           // Tap below hold threshold → playful spin, no state change.
+          // Settle scale back from press-squish.
+          fmAnimate(handleScale, 1, {
+            type: "spring",
+            stiffness: 520,
+            damping: 30,
+          });
           fmAnimate(jiggleRotate, [0, -16, 12, -7, 3, 0], {
             duration: 0.46,
             times: [0, 0.18, 0.38, 0.58, 0.78, 1],
@@ -688,6 +742,11 @@ export function ColorHoldPick() {
         if (!movedRef.current) {
           setAppColor(prevStateRef.current.color);
           setSelected(prevStateRef.current.selected);
+          fmAnimate(handleScale, 1, {
+            type: "spring",
+            stiffness: 520,
+            damping: 30,
+          });
         } else {
           // Commit bloom — radial light pulse on the phone surface, centered
           // on the handle's landing position. Reads as "surface received it."
@@ -697,6 +756,13 @@ export function ColorHoldPick() {
             duration: 0.5,
             times: [0, 0.3, 1],
             ease: [0.2, 0, 0, 1],
+          });
+          // Commit pulse — mirrors the swatch claim-beat so the handle's
+          // landing reads as part of the same selection idiom.
+          fmAnimate(handleScale, [1.18, 1.08, 1], {
+            duration: 0.42,
+            times: [0, 0.35, 1],
+            ease: [0.2, 0.8, 0.2, 1],
           });
         }
         fmAnimate(revealR, 0, { duration: 0.29, ease: [0.32, 0.72, 0, 1] });
@@ -731,6 +797,7 @@ export function ColorHoldPick() {
       bloomCY,
       bloomOpacity,
       jiggleRotate,
+      handleScale,
       smoothSpeed,
     ]
   );
@@ -1062,7 +1129,6 @@ export function ColorHoldPick() {
           onPointerDown={startPick}
           initial={false}
           animate={{
-            scale: picking ? 1.18 : 1,
             boxShadow: picking
               ? "0 0 0 2.5px rgba(255,255,255,0.95)"
               : selected === "custom"
@@ -1070,7 +1136,6 @@ export function ColorHoldPick() {
                 : tokens.swatchInset,
           }}
           transition={{
-            scale: { type: "spring", stiffness: 420, damping: 28 },
             boxShadow: { duration: 0.2 },
           }}
           style={{
@@ -1084,6 +1149,7 @@ export function ColorHoldPick() {
             cursor: picking ? "grabbing" : "grab",
             x,
             y,
+            scale: handleScale,
             rotate: jiggleRotate,
             touchAction: "none",
             visibility: measured ? "visible" : "hidden",
