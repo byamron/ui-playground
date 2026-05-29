@@ -1,4 +1,4 @@
-import { useState, useCallback, type ReactNode } from "react";
+import { useState, useCallback, useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { text } from "../palette";
 
@@ -93,14 +93,31 @@ export function DevPanel({
   controls,
   defaultOpen = true,
   background,
+  hideTuneButton = false,
 }: {
   label?: string;
   children: ReactNode;
   controls: ReactNode;
   defaultOpen?: boolean;
   background?: string;
+  // When true, the floating "Tune" button is hidden for clean recording.
+  // The panel can still be revealed by pushing the mouse to the right
+  // edge of the viewport (within EDGE_REVEAL_PX).
+  hideTuneButton?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    if (!hideTuneButton || open) return;
+    const EDGE_REVEAL_PX = 20;
+    const onMove = (e: MouseEvent) => {
+      if (window.innerWidth - e.clientX <= EDGE_REVEAL_PX) {
+        setOpen(true);
+      }
+    };
+    document.addEventListener("mousemove", onMove);
+    return () => document.removeEventListener("mousemove", onMove);
+  }, [hideTuneButton, open]);
 
   return (
     <div
@@ -131,6 +148,12 @@ export function DevPanel({
       <motion.aside
         animate={{ width: open ? SIDEBAR_WIDTH : 0 }}
         transition={{ duration: 0.3, ease: [0.2, 0, 0, 1] }}
+        onMouseLeave={() => {
+          // In tune-hidden mode the panel acts as a pure hover region:
+          // mouse to right edge opens it, leaving the panel closes it.
+          // In normal mode the button stays the only way to dismiss.
+          if (hideTuneButton) setOpen(false);
+        }}
         style={{
           overflow: "hidden",
           flexShrink: 0,
@@ -179,8 +202,10 @@ export function DevPanel({
         </div>
       </motion.aside>
 
-      {/* Tune button — fixed bottom-right when sidebar is closed */}
-      {!open && (
+      {/* Tune button — fixed bottom-right when sidebar is closed.
+          Suppressed when hideTuneButton is set so the recording frame is
+          clean; right-edge mouse reveal (above) brings the panel back. */}
+      {!open && !hideTuneButton && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}

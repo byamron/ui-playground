@@ -22,6 +22,7 @@
 export const HUES = {
   ember: 25,      // warm coral/orange
   gold: 42,       // warm amber (merged table + portrait)
+  vineyard: 90,   // olive/yellow-green (matches portfolio vineyard accent)
   sage: 155,      // muted green (merged sage + forest)
   sky: 215,       // cool blue (merged sky + slate + midnight)
   violet: 270,    // purple (merged violet + dusk)
@@ -132,7 +133,7 @@ export const demoPalettes = {
   "spotify-dj": { hue: HUES.sage, mode: "dark" as const, intensity: 1 as const },
   "companion-zoo": { hue: HUES.gold, mode: "dark" as const, intensity: 1 as const },
   "color-hold-pick": { hue: HUES.sky, mode: "light" as const, intensity: 0 as const },
-  "github-sparkline": { hue: HUES.gold, mode: "dark" as const, intensity: 1 as const },
+  "github-sparkline": { hue: HUES.vineyard, mode: "dark" as const, intensity: 1 as const },
   "page-transition": { hue: HUES.gold, mode: "light" as const, intensity: 0 as const },
   "git-toggle": { hue: HUES.violet, mode: "dark" as const, intensity: 1 as const },
 } as const;

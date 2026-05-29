@@ -1,13 +1,22 @@
+import { useSyncExternalStore } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { getBackVisible, subscribeBack } from "./chromeControl";
 
 // Floating "back" affordance rendered at the root of the app. Shows on
 // every route except the gallery itself. Top-left, fixed, neutral styling
 // so it sits on top of any demo without competing with the demo's own
-// visual language. Click → navigate to "/".
+// visual language. Click → navigate to "/". Individual demos can hide
+// this for clean recordings via setBackVisible() (see chromeControl).
 export function BackToGallery() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const visible = useSyncExternalStore(
+    subscribeBack,
+    getBackVisible,
+    getBackVisible,
+  );
   if (pathname === "/") return null;
+  if (!visible) return null;
   return (
     <button
       type="button"
