@@ -1,4 +1,4 @@
-import { useState, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { text } from "../palette";
 
@@ -53,8 +53,11 @@ function TuneButton({ open, onClick }: { open: boolean; onClick: () => void }) {
       whileHover={{ scale: 1.04 }}
       whileTap={{ scale: 0.96 }}
       style={{
-        background: "rgba(255,255,255,0.04)",
-        border: `1px solid ${PANEL.border}`,
+        // Dark glass chip — readable against both light and dark demo backgrounds.
+        background: "rgba(8, 8, 10, 0.78)",
+        backdropFilter: `blur(${PANEL.blur})`,
+        WebkitBackdropFilter: `blur(${PANEL.blur})`,
+        border: "1px solid rgba(255, 255, 255, 0.10)",
         borderRadius: 10,
         padding: "7px 12px",
         color: COLOR.primary,
@@ -87,6 +90,16 @@ function TuneButton({ open, onClick }: { open: boolean; onClick: () => void }) {
 //   </DevPanel>
 // ---------------------------------------------------------------------------
 
+type OpenTrigger = "button" | "edge";
+const TRIGGER_STORAGE_KEY = "ui-playground:devpanel-trigger";
+const EDGE_ZONE_WIDTH = 18;
+
+function readStoredTrigger(): OpenTrigger {
+  if (typeof window === "undefined") return "button";
+  const stored = window.localStorage.getItem(TRIGGER_STORAGE_KEY);
+  return stored === "edge" ? "edge" : "button";
+}
+
 export function DevPanel({
   label,
   children,
@@ -100,7 +113,19 @@ export function DevPanel({
   defaultOpen?: boolean;
   background?: string;
 }) {
+  const [openTrigger, setOpenTrigger] = useState<OpenTrigger>(readStoredTrigger);
   const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(TRIGGER_STORAGE_KEY, openTrigger); } catch {}
+  }, [openTrigger]);
+
+  // In edge mode the panel auto-closes when the cursor leaves it, so we
+  // start collapsed regardless of `defaultOpen` (otherwise the panel sits
+  // open until first interaction and feels stuck).
+  useEffect(() => {
+    if (openTrigger === "edge") setOpen(false);
+  }, [openTrigger]);
 
   return (
     <div
@@ -131,6 +156,9 @@ export function DevPanel({
       <motion.aside
         animate={{ width: open ? SIDEBAR_WIDTH : 0 }}
         transition={{ duration: 0.3, ease: [0.2, 0, 0, 1] }}
+        onMouseLeave={() => {
+          if (openTrigger === "edge") setOpen(false);
+        }}
         style={{
           overflow: "hidden",
           flexShrink: 0,
@@ -172,15 +200,30 @@ export function DevPanel({
           )}
           {controls}
 
-          {/* Tune button — inside sidebar when open */}
-          <div style={{ marginTop: "auto", paddingTop: 8, display: "flex" }}>
-            <TuneButton open={open} onClick={() => setOpen(false)} />
-          </div>
+          <DevDivider />
+          <DevButtonGroup<OpenTrigger>
+            label="Panel"
+            value={openTrigger}
+            onChange={setOpenTrigger}
+            options={[
+              { label: "Button", value: "button" },
+              { label: "Edge", value: "edge" },
+            ]}
+          />
+
+          {/* Tune button — inside sidebar when open. In edge mode the
+              cursor closes the panel by leaving, so the explicit button
+              is redundant. */}
+          {openTrigger === "button" && (
+            <div style={{ marginTop: "auto", paddingTop: 8, display: "flex" }}>
+              <TuneButton open={open} onClick={() => setOpen(false)} />
+            </div>
+          )}
         </div>
       </motion.aside>
 
-      {/* Tune button — fixed bottom-right when sidebar is closed */}
-      {!open && (
+      {/* Closed-state triggers */}
+      {!open && openTrigger === "button" && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -188,6 +231,23 @@ export function DevPanel({
         >
           <TuneButton open={false} onClick={() => setOpen(true)} />
         </motion.div>
+      )}
+
+      {/* Invisible hover strip along the right edge — opens the panel
+          when the cursor approaches. Only present in edge mode. */}
+      {!open && openTrigger === "edge" && (
+        <div
+          aria-hidden="true"
+          onMouseEnter={() => setOpen(true)}
+          style={{
+            position: "fixed",
+            top: 0,
+            right: 0,
+            width: EDGE_ZONE_WIDTH,
+            height: "100%",
+            zIndex: 99,
+          }}
+        />
       )}
     </div>
   );

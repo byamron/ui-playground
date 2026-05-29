@@ -163,6 +163,15 @@ export const galleryDemos: GalleryDemo[] = [
     family: "Sorenidae",
     catalogue: "SOR·006",
   },
+  {
+    path: "/flock",
+    title: "Flock",
+    description:
+      "Hover the X. A flock of classic Twitter birds flies off the screen.",
+    ...palette("flock"),
+    family: "Sorenidae",
+    catalogue: "SOR·007",
+  },
 ];
 
 const ROMAN = [

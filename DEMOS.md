@@ -46,6 +46,7 @@ between the two repos is documented in `CLAUDE.md` under
 | 10 | Fisheye Text | `/fisheye-text` | Craft | — | In progress |
 | 11 | Spotify DJ Call-In | `/spotify-dj` | Witty | @Soren, @Spotify | In progress |
 | 12 | Spotify Wrapped for Ads | `/spotify-wrapped-ads` | Witty | @Soren, @Spotify | In progress |
+| 13 | Flock | `/flock` | Witty | @Twitter | In progress |
 | flex | Companion Zoo | `/companion-zoo` | Witty | — | Deferred |
 
 Ordering principles: open with untagged craft to keep building profile depth, introduce @Soren/@Figma at #3 to break the craft streak, then alternate untagged Sparkline against the two strongest tagged pieces (Git Toggle @GitHub, Glass Pull @Gavin Nelson) to close out the Ready batch. Spotify Wrapped is held for the finale.
