@@ -107,9 +107,10 @@ surfaces — useful for debugging and for grepping the portfolio.
 
 **Direct surface** — imported by name in portfolio source:
 
-- `@playground/palette` — named exports `bg`, `text`, `demoPalettes`
-  (`bg`, `demoPalettes` directly in `src/components/arcade/demos.ts`;
-  `text` also used transitively)
+- `@playground/palette` — named exports `bg`, `text`, `demoPalettes`,
+  `HUES` (`bg`, `demoPalettes` directly in
+  `src/components/arcade/demos.ts`; `text` and `HUES` also used
+  transitively)
 - `@playground/demos/<slug>/<Component>` — each demo's named export
   matches its file name (e.g. `PageTransition` in `PageTransition.tsx`).
   Imported directly by `src/pages/ArcadeDemo.tsx` and
@@ -122,9 +123,21 @@ still cascades into production:
 - `@playground/components/DevPanel` — `DevPanel`, `DevSlider`,
   `DevToggle`, `DevButtonGroup`, `DevButton`, `DevTextInput`,
   `DevDivider`. Consumed by most demos and by the playground's own
-  gallery shell.
+  gallery shell. The component prop lists evolve (e.g. `DevPanel` gained
+  `hideTuneButton` in playground PR #36) — additive prop changes are
+  non-breaking, but renames or removals are.
 - `@playground/utils/webgl` — WebGL helper signatures. Currently used
   internally by the `slide-unlock` demo.
+
+**Workshop-internal, harmless in portfolio** — imports a demo *may*
+make that have no observable effect when consumed by the portfolio,
+but should still be flagged as part of the demo's surface:
+
+- `@playground/components/chromeControl` — `setBackVisible`,
+  `getBackVisible`, `subscribeBack`. Used by demos to hide the
+  playground's `BackToGallery` for clean recordings. The portfolio
+  doesn't render `BackToGallery`, so `setBackVisible(false)` is a
+  no-op in production. Safe to call; safe to import.
 
 When a playground PR changes any of these, the PR description must flag
 it so the corresponding portfolio bump includes the matching allowlist
@@ -249,26 +262,48 @@ portfolio.
 
 ## 3. Source of truth: ui-playground `DEMOS.md`
 
-`DEMOS.md` is the **engineering inventory**. Every demo has exactly one
-status:
+`DEMOS.md` is the **engineering inventory**. Release tracks two
+independent channels, and unshipped demos carry a roadmap status:
+
+### Channel state (for demos that have shipped on either channel)
+
+| Column | Value | Meaning |
+| --- | --- | --- |
+| **Twitter** | *Posted* | Already gone out on social |
+| **Twitter** | — | Not yet posted |
+| **Portfolio** | *Live* | Reachable from the `/arcade` gallery |
+| **Portfolio** | *URL only* | Promoted to the portfolio repo and reachable at a vanity URL, but the `/arcade` gallery entry point hasn't shipped yet |
+| **Portfolio** | — | Not on the portfolio at all |
+
+Twitter and Portfolio are independent. A demo can be Posted on Twitter
+without ever appearing on the portfolio, and vice versa.
+
+### Roadmap status (for unshipped demos)
 
 | Status | Meaning | Eligible for portfolio? |
 | --- | --- | --- |
-| **Released** | Already posted publicly | ✅ Yes |
-| **Ready** | Meets the quality bar; cleared for recording | ✅ Yes |
+| **Ready** | Meets the quality bar; cleared for recording and/or promotion | ✅ Yes |
 | **In progress** | Exists in code, not yet ready | ❌ No |
 | **Deferred** | Paused, will revisit | ❌ No |
 | **Internal** | Personal tool, never ships | ❌ No |
 | **Archived** | Cut; code may remain under `src/demos/archived/` | ❌ No |
 
-**Rule:** Released + Ready → *eligible for* portfolio. Eligibility is
-not exposure — the portfolio-side allowlist still has to opt the demo in.
+**Eligibility rule:** A demo qualifies for the `/arcade` allowlist if
+it's *Ready*, *URL only*, or already *Live*. Twitter state is
+independent and does not gate portfolio inclusion.
 
 **Why `DEMOS.md` is the inventory and not the source of truth for the
 portfolio.** Status changes in the playground don't (and shouldn't)
 auto-propagate to the portfolio. A demo flipping Ready means "this is
 shippable" — not "ship this now." Portfolio publishing is a deliberate
 decision per demo. See D1 below.
+
+**Channel transitions to be aware of:** when the `/arcade` entry point
+ships in the portfolio, the demos currently marked *URL only* flip to
+*Live* automatically (no playground edit triggers this; the playground
+`DEMOS.md` update happens as part of the portfolio-side PR that lands
+the entry point). After that, new promotions go Ready → *Live* directly,
+skipping *URL only* unless a vanity URL goes up first.
 
 ---
 
@@ -380,11 +415,12 @@ If drift accumulates again (e.g., several playground PRs land without a
 portfolio bump), reconcile in one PR:
 
 1. Bump submodule to current playground `main`.
-2. Diff playground `DEMOS.md` (Released + Ready) against the three
-   portfolio allowlist files.
-3. Add missing eligible demos. Remove stale demos. (Per the §3 rule,
-   "eligible" is necessary but not sufficient — Ben still chooses what
-   to publish.)
+2. Diff playground `DEMOS.md` against the three portfolio allowlist
+   files: every demo currently *Live*, *URL only*, or *Ready* is a
+   candidate for inclusion.
+3. Add missing eligible demos. Remove stale demos. (Per the §3
+   eligibility rule, "eligible" is necessary but not sufficient — Ben
+   still chooses what to publish.)
 4. Verify all `/arcade/<slug>` routes load.
 5. PR into `next-update`.
 
@@ -548,17 +584,25 @@ load-bearing.
 
 ### Don't break the shared surface (§2) without warning
 
-If a playground PR renames a `palette` export, changes a `DevPanel`
-prop signature, alters a demo component's named export, or restructures
-`utils/webgl`, **flag it explicitly in the PR description** with the
-text "Touches shared surface — portfolio bump must include matching
-update." The portfolio's typecheck won't catch the regression because
-of the intentional TS boundary (§2 "Vite alias + TypeScript boundary"),
-so the only safety net is the bumper noticing.
+If a playground PR renames a `palette` export, removes or renames a
+`DevPanel` prop, alters a demo component's named export, or
+restructures `utils/webgl`, **flag it explicitly in the PR description**
+with the text "Touches shared surface — portfolio bump must include
+matching update." The portfolio's typecheck won't catch the regression
+because of the intentional TS boundary (§2 "Vite alias + TypeScript
+boundary"), so the only safety net is the bumper noticing.
+
+Additive changes (adding a new export to `palette`, adding a new prop
+to `DevPanel`, introducing a new workshop-internal module like
+`chromeControl`) are non-breaking and don't need the flag — but they
+*do* widen the shared surface, so the next time `cross-repo-sync.md`
+is touched, the §2 list should be brought current.
 
 **Rationale.** A routine rename on the workshop side becomes a
 production incident on the showcase side. The flag costs nothing to
-add and makes the contract enforceable in code review.
+add and makes the contract enforceable in code review. Keeping the §2
+list current keeps the contract inspectable; without that, the
+"transitive surface" section drifts into fiction.
 
 ### `src/components/gallery/ArcadeGallery.tsx` is workshop-local
 
