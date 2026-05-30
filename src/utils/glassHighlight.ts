@@ -75,6 +75,22 @@ export interface GlassHighlightAPI {
   cleanup: () => void;
   /** Force a single repaint with the current configRef values. */
   redraw: () => void;
+  /** One-shot pulse on the pill's fill opacity (decays naturally via the
+   *  smoothing in the loop). Used to couple external events (e.g. a flock
+   *  launch) to a visible pill intensification. */
+  spikePressure: (amount: number) => void;
+  /** Suppress or restore the pill's visibility. Used by the shatter
+   *  effect — the pill "becomes" the shards and returns once they're gone. */
+  setPillVisible: (visible: boolean) => void;
+  /** Read the pill's current bounding rect in viewport coords (or null if
+   *  not visible). Used by the shatter effect to know what to break. */
+  getPillRect: () => DOMRect | null;
+  /** Add a small high-frequency translate jitter to the pill that builds
+   *  over `durationMs` (eased so it intensifies near the end). Used to
+   *  signal stress before the glass breaks. */
+  shakeFor: (durationMs: number, maxPx?: number) => void;
+  /** Stop any in-progress shake immediately. */
+  cancelShake: () => void;
 }
 
 interface SetupOptions {
@@ -135,6 +151,25 @@ export function setupGlassHighlight(
   let glassPressure = 0;
   let glassPressureMax = configRef.current.glassPressure;
 
+  // External spike: brief brighten of the pill fill in response to a
+  // discrete event (e.g. a flock launch). Independent of the spring's
+  // smoothing so it has its own clear hold-and-decay envelope.
+  let spikeAmount = 0;
+  let spikeStartMs = 0;
+  const SPIKE_HOLD_MS = 130;
+  const SPIKE_DECAY_MS = 380;
+
+  // External suppression of pill visibility (shatter effect).
+  let pillSuppressed = false;
+
+  // Shake: small high-frequency translate jitter that builds over its
+  // duration, then snaps to nothing. Drives a per-frame random offset
+  // applied on top of the spring-driven translate.
+  let shakeStartMs = 0;
+  let shakeDurationMs = 0;
+  let shakeMaxPx = 0;
+  const SHAKE_DEFAULT_MAX_PX = 1.6;
+
   function engageCardLean(card: HTMLElement): void {
     leanIntensity = 0;
     card.style.transition = "none";
@@ -190,7 +225,7 @@ export function setupGlassHighlight(
   }
 
   function fadeIn() {
-    if (!pill) return;
+    if (!pill || pillSuppressed) return;
     pill.style.transition = `opacity ${STATIC.fadeDuration}ms ease`;
     pill.style.opacity = "1";
   }
@@ -301,7 +336,9 @@ export function setupGlassHighlight(
     glassPressure += (targetPressure - glassPressure) * 0.1;
 
     const pressureActive = glassPressure > 0.001;
-    const settled = !activeX && !activeY && !activeW && !activeH && !entranceActive && !pressureActive;
+    const spikeActive = spikeAmount > 0;
+    const shakeActive = shakeDurationMs > 0;
+    const settled = !activeX && !activeY && !activeW && !activeH && !entranceActive && !pressureActive && !spikeActive && !shakeActive;
 
     if (settled) {
       springs.x.value = springs.x.target;
@@ -356,7 +393,22 @@ export function setupGlassHighlight(
     const shadowY = 0.5 + clampNy * 0.5;
     const edgeIntensity = ambientHL + (1 - Math.min(d, 1)) * ambientHL * 0.5;
 
-    const fillOpacity = (baseOpacity + glassPressure).toFixed(3);
+    // Compute external spike contribution: hold at full amount, then ease
+    // out over SPIKE_DECAY_MS. Resets to 0 after the envelope completes.
+    let spikeContribution = 0;
+    if (spikeAmount > 0) {
+      const elapsed = now - spikeStartMs;
+      if (elapsed < SPIKE_HOLD_MS) {
+        spikeContribution = spikeAmount;
+      } else if (elapsed < SPIKE_HOLD_MS + SPIKE_DECAY_MS) {
+        const t = (elapsed - SPIKE_HOLD_MS) / SPIKE_DECAY_MS;
+        // Ease-out cubic
+        spikeContribution = spikeAmount * Math.pow(1 - t, 3);
+      } else {
+        spikeAmount = 0;
+      }
+    }
+    const fillOpacity = (baseOpacity + glassPressure + spikeContribution).toFixed(3);
     const fillHsla = isDark
       ? `hsla(${hue}, 20%, 55%, ${fillOpacity})`
       : `hsla(${hue}, 40%, 28%, ${fillOpacity})`;
@@ -406,8 +458,26 @@ export function setupGlassHighlight(
     const tx = springs.x.value - (w * (sx - 1)) / 2 + leanX;
     const ty = springs.y.value - (h * (sy - 1)) / 2 + leanY;
 
+    // Shake: small random translate jitter on a bell-curve envelope
+    // (sin(πt)). Ramps up as the cracks begin, peaks midway through the
+    // crack-draw, tapers to 0 as the cracks settle — so the pill *only*
+    // shakes while it's actively cracking, never after.
+    let shakeOffsetX = 0;
+    let shakeOffsetY = 0;
+    if (shakeDurationMs > 0) {
+      const elapsed = now - shakeStartMs;
+      const t = elapsed / shakeDurationMs;
+      if (t >= 1) {
+        shakeDurationMs = 0;
+      } else {
+        const amp = Math.sin(t * Math.PI) * shakeMaxPx;
+        shakeOffsetX = (Math.random() - 0.5) * 2 * amp;
+        shakeOffsetY = (Math.random() - 0.5) * 2 * amp;
+      }
+    }
+
     const es = Math.max(0.01, entranceScale);
-    pill.style.transform = `translate(${tx}px, ${ty}px) rotate(${rotateDeg}deg) scale(${sx * es}, ${sy * es})`;
+    pill.style.transform = `translate(${tx + shakeOffsetX}px, ${ty + shakeOffsetY}px) rotate(${rotateDeg}deg) scale(${sx * es}, ${sy * es})`;
 
     const roundedW = Math.round(w);
     const roundedH = Math.round(h);
@@ -562,6 +632,45 @@ export function setupGlassHighlight(
         state.lastTime = 0;
         startLoop();
       }
+    },
+    spikePressure: (amount: number) => {
+      // Layered on top of the spring's smoothed pressure, with its own
+      // hold-and-decay envelope so it's clearly visible (~500ms total).
+      spikeAmount = amount;
+      spikeStartMs = performance.now();
+      if (currentCard && pill) {
+        state.lastTime = 0;
+        startLoop();
+      }
+    },
+    setPillVisible: (visible: boolean) => {
+      pillSuppressed = !visible;
+      if (!pill) return;
+      if (!visible) {
+        // Instant hide — no transition. The shards take over the moment.
+        pill.style.transition = "none";
+        pill.style.opacity = "0";
+      } else {
+        // Restore — fade back in gently so it doesn't pop.
+        pill.style.transition = `opacity ${STATIC.fadeDuration}ms ease`;
+        pill.style.opacity = currentCard ? "1" : "0";
+      }
+    },
+    getPillRect: () => {
+      if (!pill || pillSuppressed) return null;
+      return pill.getBoundingClientRect();
+    },
+    shakeFor: (durationMs: number, maxPx?: number) => {
+      shakeStartMs = performance.now();
+      shakeDurationMs = durationMs;
+      shakeMaxPx = maxPx ?? SHAKE_DEFAULT_MAX_PX;
+      if (currentCard && pill) {
+        state.lastTime = 0;
+        startLoop();
+      }
+    },
+    cancelShake: () => {
+      shakeDurationMs = 0;
     },
   };
 }
