@@ -1,15 +1,32 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { DevPanel, DevSlider, DevToggle, DevDivider } from "../../components/DevPanel";
+import { setBackVisible } from "../../components/chromeControl";
 
 /**
  * Page Transition — focused demo of the portfolio's project-link → and
- * back-button ← animations. Both run a 500ms windup→slide while the page
- * fades to 0, then the next page fades in. Skeleton content keeps the eye
- * on the arrow.
+ * back-button ← animations. Both run a windup→slide while the page fades to
+ * 0, then the next page fades in. A dev panel exposes the timing levers and
+ * lets the recorder hide the global Back button so it doesn't compete with
+ * the demo's own Back affordance.
  */
 
-const ARROW_MS = 500;
-const FADE_MS = 280;
 const FONT = "'Onest', -apple-system, BlinkMacSystemFont, sans-serif";
+const SERIF = "'Literata', Georgia, 'Times New Roman', serif";
+
+const DEFAULTS = {
+  arrowMs: 500,
+  fadeMs: 280,
+  rampMs: 800,
+  fastMs: 160,
+  jiggleIntensity: 1,
+} as const;
 
 type Theme = "light" | "dark";
 type View = "index" | "detail";
@@ -18,8 +35,6 @@ interface ThemeTokens {
   bg: string;
   textDark: string;
   textGrey: string;
-  skeleton: string;
-  skeletonStrong: string;
   underline: string;
   hoverBg: string;
   pressedBg: string;
@@ -34,8 +49,6 @@ const THEMES: Record<Theme, ThemeTokens> = {
     bg: "hsl(34, 30%, 94%)",
     textDark: "hsl(0, 0%, 7%)",
     textGrey: "hsl(0, 0%, 40%)",
-    skeleton: "hsl(34, 14%, 86%)",
-    skeletonStrong: "hsl(34, 14%, 80%)",
     underline: "hsl(34, 8%, 58%)",
     hoverBg: "hsla(0, 0%, 0%, 0.05)",
     pressedBg: "hsla(0, 0%, 0%, 0.06)",
@@ -48,8 +61,6 @@ const THEMES: Record<Theme, ThemeTokens> = {
     bg: "hsl(34, 14%, 9%)",
     textDark: "hsl(0, 0%, 96%)",
     textGrey: "hsl(0, 0%, 62%)",
-    skeleton: "hsl(34, 8%, 16%)",
-    skeletonStrong: "hsl(34, 8%, 22%)",
     underline: "hsl(34, 6%, 42%)",
     hoverBg: "hsla(0, 0%, 100%, 0.07)",
     pressedBg: "hsla(0, 0%, 100%, 0.10)",
@@ -61,9 +72,8 @@ const THEMES: Record<Theme, ThemeTokens> = {
 } as const;
 
 const CARDS: { title: string; subtitle: string }[] = [
-  { title: "Something I built", subtitle: "Some company, 2026" },
-  { title: "Creating shareholder value", subtitle: "Another company, 2025" },
-  { title: "A side project", subtitle: "Just me, 2024" },
+  { title: "Something I built", subtitle: "Some company · 2026" },
+  { title: "Creating shareholder value", subtitle: "Another company · 2025" },
 ];
 
 const TITLE_WEIGHT = 400;
@@ -71,14 +81,39 @@ const SUBTITLE_SIZE = 14;
 const PAIR_GAP = 6;
 const UNDERLINE_BOTTOM = 4;
 
+interface Timings {
+  arrowMs: number;
+  rampMs: number;
+  fastMs: number;
+}
+
+const TimingsContext = createContext<Timings>({
+  arrowMs: DEFAULTS.arrowMs,
+  rampMs: DEFAULTS.rampMs,
+  fastMs: DEFAULTS.fastMs,
+});
+
 export function PageTransition() {
   const [theme, setTheme] = useState<Theme>("light");
   const [view, setView] = useState<View>("index");
   const [animatingIdx, setAnimatingIdx] = useState<number | null>(null);
   const [backAnimating, setBackAnimating] = useState(false);
   const [pageOpacity, setPageOpacity] = useState(1);
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
+  // Tunable
+  const [arrowMs, setArrowMs] = useState<number>(DEFAULTS.arrowMs);
+  const [fadeMs, setFadeMs] = useState<number>(DEFAULTS.fadeMs);
+  const [rampMs, setRampMs] = useState<number>(DEFAULTS.rampMs);
+  const [jiggleIntensity, setJiggleIntensity] = useState<number>(
+    DEFAULTS.jiggleIntensity,
+  );
+  // Recording chrome — toggles to clean the frame for screen capture.
+  // When the tune button is hidden the panel still opens via right-edge
+  // mouse reveal (see DevPanel).
+  const [showBackButton, setShowBackButton] = useState(true);
+  const [showTuneButton, setShowTuneButton] = useState(true);
+
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const t = THEMES[theme];
 
   useEffect(() => {
@@ -88,6 +123,11 @@ export function PageTransition() {
     };
   }, []);
 
+  useEffect(() => {
+    setBackVisible(showBackButton);
+    return () => setBackVisible(true);
+  }, [showBackButton]);
+
   function clearTimers() {
     timers.current.forEach(clearTimeout);
     timers.current = [];
@@ -95,23 +135,26 @@ export function PageTransition() {
 
   function go(next: View) {
     clearTimers();
-    // Let the arrow play cleanly for its first ~340ms, then overlap the fade
-    // with the arrow's final 160ms — page exits behind the arrow, not on top.
-    const fadeStart = ARROW_MS - 160;
+    // Let the arrow play cleanly, then overlap the fade with its final ~32%
+    // so the page exits behind the arrow rather than on top of it.
+    const fadeStart = Math.max(0, arrowMs - Math.round(arrowMs * 0.32));
     timers.current.push(
       setTimeout(() => setPageOpacity(0), fadeStart),
       setTimeout(() => {
         setView(next);
         setAnimatingIdx(null);
         setBackAnimating(false);
-        // brief breath before fade-in so the swap reads
-        timers.current.push(setTimeout(() => setPageOpacity(1), 20));
-      }, ARROW_MS),
+        // wait one frame so the new view paints before fading in
+        requestAnimationFrame(() => setPageOpacity(1));
+      }, arrowMs),
     );
   }
 
   function prefersReducedMotion() {
-    return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    return (
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    );
   }
 
   function instantSwap(next: View) {
@@ -142,43 +185,120 @@ export function PageTransition() {
     go("index");
   }
 
+  const timings = useMemo<Timings>(
+    () => ({ arrowMs, rampMs, fastMs: DEFAULTS.fastMs }),
+    [arrowMs, rampMs],
+  );
+
+  const keyframesCSS = useMemo(
+    () => buildKeyframesCSS(jiggleIntensity),
+    [jiggleIntensity],
+  );
+
   return (
-    <div
-      style={{
-        width: "100%",
-        height: "100%",
-        background: t.bg,
-        fontFamily: FONT,
-        color: t.textDark,
-        position: "relative",
-        overflow: "hidden",
-        transition: `background-color ${FADE_MS}ms ease`,
-      }}
-    >
-      <ThemeSwitch theme={theme} onToggle={() => setTheme(theme === "light" ? "dark" : "light")} t={t} />
-
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          opacity: pageOpacity,
-          transition: `opacity ${FADE_MS}ms ease`,
-        }}
-      >
-        {view === "index" ? (
-          <IndexPage
-            theme={t}
-            cards={CARDS}
-            animatingIdx={animatingIdx}
-            onOpen={openCard}
+    <DevPanel
+      label="Page Transition"
+      background={t.bg}
+      hideTuneButton={!showTuneButton}
+      controls={
+        <>
+          <DevSlider
+            label="Arrow speed"
+            value={arrowMs}
+            onChange={setArrowMs}
+            min={220}
+            max={1100}
+            step={20}
+            format={(v) => `${Math.round(v)}ms`}
           />
-        ) : (
-          <DetailPage theme={t} backAnimating={backAnimating} onBack={goBack} />
-        )}
-      </div>
+          <DevSlider
+            label="Page fade"
+            value={fadeMs}
+            onChange={setFadeMs}
+            min={120}
+            max={500}
+            step={10}
+            format={(v) => `${Math.round(v)}ms`}
+          />
+          <DevSlider
+            label="Jiggle build-up"
+            value={rampMs}
+            onChange={setRampMs}
+            min={300}
+            max={2400}
+            step={50}
+            format={(v) => `${Math.round(v)}ms`}
+          />
+          <DevSlider
+            label="Jiggle intensity"
+            value={jiggleIntensity}
+            onChange={setJiggleIntensity}
+            min={0}
+            max={2}
+            step={0.1}
+            format={(v) => `${v.toFixed(1)}×`}
+          />
+          <DevDivider />
+          <DevToggle
+            label="Show back button"
+            checked={showBackButton}
+            onChange={setShowBackButton}
+          />
+          <DevToggle
+            label="Show tune button"
+            checked={showTuneButton}
+            onChange={setShowTuneButton}
+          />
+        </>
+      }
+    >
+      <TimingsContext.Provider value={timings}>
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            background: t.bg,
+            fontFamily: FONT,
+            color: t.textDark,
+            position: "relative",
+            overflow: "hidden",
+            transition: `background-color ${fadeMs}ms ease`,
+          }}
+        >
+          <ThemeSwitch
+            theme={theme}
+            onToggle={() => setTheme(theme === "light" ? "dark" : "light")}
+            t={t}
+          />
 
-      <Keyframes />
-    </div>
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              opacity: pageOpacity,
+              transition: `opacity ${fadeMs}ms ease`,
+            }}
+          >
+            {view === "index" ? (
+              <IndexPage
+                theme={t}
+                cards={CARDS}
+                animatingIdx={animatingIdx}
+                onOpen={openCard}
+              />
+            ) : (
+              <DetailPage
+                theme={t}
+                backAnimating={backAnimating}
+                onBack={goBack}
+              />
+            )}
+          </div>
+
+          <style>{keyframesCSS}</style>
+        </div>
+      </TimingsContext.Provider>
+    </DevPanel>
   );
 }
 
@@ -199,22 +319,54 @@ function IndexPage({ theme, cards, animatingIdx, onOpen }: IndexProps) {
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "center",
         alignItems: "center",
-        padding: "0 40px",
+        paddingTop: 96,
+        paddingLeft: 40,
+        paddingRight: 40,
       }}
     >
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 32, width: "100%", maxWidth: 720 }}>
-        {cards.map((c, i) => (
-          <ProjectCard
-            key={i}
-            theme={theme}
-            title={c.title}
-            subtitle={c.subtitle}
-            sliding={animatingIdx === i}
-            onClick={() => onOpen(i)}
-          />
-        ))}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-start",
+          width: "100%",
+          maxWidth: 560,
+        }}
+      >
+        <h1
+          style={{
+            margin: "0 0 48px 0",
+            fontFamily: SERIF,
+            fontSize: 38,
+            fontWeight: 400,
+            lineHeight: 1.05,
+            color: theme.textDark,
+            letterSpacing: "-0.015em",
+          }}
+        >
+          Projects
+        </h1>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            gap: 40,
+            width: "100%",
+          }}
+        >
+          {cards.map((c, i) => (
+            <ProjectCard
+              key={i}
+              theme={theme}
+              title={c.title}
+              subtitle={c.subtitle}
+              sliding={animatingIdx === i}
+              onClick={() => onOpen(i)}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -230,12 +382,17 @@ interface CardProps {
 
 function ProjectCard({ theme, title, subtitle, sliding, onClick }: CardProps) {
   const [hover, setHover] = useState(false);
+  const [focus, setFocus] = useState(false);
   return (
     <button
       className="pt-card"
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      onFocus={(e) => {
+        if (e.target.matches(":focus-visible")) setFocus(true);
+      }}
+      onBlur={() => setFocus(false)}
       style={{
         display: "inline-flex",
         flexDirection: "column",
@@ -264,10 +421,10 @@ function ProjectCard({ theme, title, subtitle, sliding, onClick }: CardProps) {
         <span
           className="pt-card__title"
           style={{
-            fontSize: 18,
+            fontSize: 20,
             fontWeight: TITLE_WEIGHT,
             color: theme.textDark,
-            lineHeight: 1.4,
+            lineHeight: 1.35,
             opacity: sliding ? 0.5 : 1,
             transition: "opacity 200ms ease-out",
             ["--pt-underline" as string]: theme.underline,
@@ -279,7 +436,7 @@ function ProjectCard({ theme, title, subtitle, sliding, onClick }: CardProps) {
         <ArrowGlyph
           direction="right"
           sliding={sliding}
-          hover={hover && !sliding}
+          hover={(hover || focus) && !sliding}
           color={theme.textDark}
         />
       </div>
@@ -287,7 +444,6 @@ function ProjectCard({ theme, title, subtitle, sliding, onClick }: CardProps) {
         style={{
           fontSize: SUBTITLE_SIZE,
           color: theme.textGrey,
-          letterSpacing: "0.01em",
           lineHeight: 1.4,
           opacity: sliding ? 0.5 : 1,
           transition: "opacity 200ms ease-out",
@@ -328,23 +484,69 @@ function DetailPage({ theme, backAnimating, onBack }: DetailProps) {
           display: "flex",
           flexDirection: "column",
           alignItems: "flex-start",
-          gap: 36,
+          gap: 32,
         }}
       >
         <BackButton theme={theme} sliding={backAnimating} onClick={onBack} />
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          <SkeletonBar w={420} h={28} color={theme.skeletonStrong} radius={6} />
-          <SkeletonBar w={180} h={14} color={theme.skeleton} radius={4} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <h1
+            style={{
+              margin: 0,
+              fontFamily: SERIF,
+              fontSize: 32,
+              fontWeight: 400,
+              lineHeight: 1.15,
+              color: theme.textDark,
+              letterSpacing: "-0.015em",
+            }}
+          >
+            Something I built
+          </h1>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 14,
+              color: theme.textGrey,
+              lineHeight: 1.4,
+            }}
+          >
+            Some company · 2026
+          </p>
         </div>
 
-        <SkeletonBar w="100%" h={260} color={theme.skeleton} radius={12} />
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: 640 }}>
-          <SkeletonBar w="100%" h={12} color={theme.skeleton} radius={4} />
-          <SkeletonBar w="87%" h={12} color={theme.skeleton} radius={4} />
-          <SkeletonBar w="94%" h={12} color={theme.skeleton} radius={4} />
-          <SkeletonBar w="52%" h={12} color={theme.skeleton} radius={4} />
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 14,
+            maxWidth: 580,
+          }}
+        >
+          <p
+            style={{
+              margin: 0,
+              fontSize: 15,
+              lineHeight: 1.6,
+              color: theme.textDark,
+            }}
+          >
+            Welcome to the case study. The transition you just used moves
+            between the index and this view in half a second — the arrow runs
+            a brief windup, then carries the page off-frame as the next view
+            fades in.
+          </p>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 15,
+              lineHeight: 1.6,
+              color: theme.textGrey,
+            }}
+          >
+            Here is where I talk about the context, role, the work itself, and
+            the reasoning behind the decisions.
+          </p>
         </div>
       </div>
     </div>
@@ -359,12 +561,17 @@ interface BackProps {
 
 function BackButton({ theme, sliding, onClick }: BackProps) {
   const [hover, setHover] = useState(false);
+  const [focus, setFocus] = useState(false);
   return (
     <button
       className="pt-back"
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      onFocus={(e) => {
+        if (e.target.matches(":focus-visible")) setFocus(true);
+      }}
+      onBlur={() => setFocus(false)}
       style={{
         alignSelf: "flex-start",
         display: "inline-flex",
@@ -390,7 +597,12 @@ function BackButton({ theme, sliding, onClick }: BackProps) {
             : "transparent",
       }}
     >
-      <ArrowGlyph direction="left" sliding={sliding} hover={hover && !sliding} color={theme.textDark} />
+      <ArrowGlyph
+        direction="left"
+        sliding={sliding}
+        hover={(hover || focus) && !sliding}
+        color={theme.textDark}
+      />
       <span
         className="pt-back__label"
         style={{
@@ -418,55 +630,41 @@ interface ArrowProps {
 }
 
 function ArrowGlyph({ direction, sliding, hover, color }: ArrowProps) {
-  const slideAnim = direction === "right" ? "ptArrowOutRight" : "ptArrowOutLeft";
-  const rampAnim = direction === "right" ? "ptArrowJiggleRampRight" : "ptArrowJiggleRampLeft";
-  const fastAnim = direction === "right" ? "ptArrowJiggleFastRight" : "ptArrowJiggleFastLeft";
+  const { arrowMs, rampMs, fastMs } = useContext(TimingsContext);
+  const slideAnim =
+    direction === "right" ? "ptArrowOutRight" : "ptArrowOutLeft";
+  const rampAnim =
+    direction === "right"
+      ? "ptArrowJiggleRampRight"
+      : "ptArrowJiggleRampLeft";
+  const fastAnim =
+    direction === "right"
+      ? "ptArrowJiggleFastRight"
+      : "ptArrowJiggleFastLeft";
   return (
     <span
       aria-hidden="true"
       className="pt-arrow"
       style={{
         display: "inline-block",
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: 500,
         verticalAlign: "middle",
         color,
         lineHeight: 1,
         ...(sliding
-          ? { animation: `${slideAnim} ${ARROW_MS}ms cubic-bezier(0.22, 1, 0.36, 1) forwards` }
+          ? {
+              animation: `${slideAnim} ${arrowMs}ms cubic-bezier(0.22, 1, 0.36, 1) forwards`,
+            }
           : hover
             ? {
-                animation: `${rampAnim} 2800ms linear forwards, ${fastAnim} 160ms linear 2800ms infinite`,
+                animation: `${rampAnim} ${rampMs}ms linear forwards, ${fastAnim} ${fastMs}ms linear ${rampMs}ms infinite`,
               }
             : {}),
       }}
     >
       {direction === "right" ? "→" : "←"}
     </span>
-  );
-}
-
-// ─── Skeleton ─────────────────────────────────────────────────────────
-
-interface SkelProps {
-  w: number | string;
-  h: number;
-  color: string;
-  radius?: number;
-  maxW?: number;
-}
-
-function SkeletonBar({ w, h, color, radius = 4, maxW }: SkelProps) {
-  return (
-    <div
-      style={{
-        width: typeof w === "number" ? w : w,
-        maxWidth: maxW,
-        height: h,
-        background: color,
-        borderRadius: radius,
-      }}
-    />
   );
 }
 
@@ -541,7 +739,8 @@ function ThemeSwitch({ theme, onToggle, t }: SwitchProps) {
           alignItems: "center",
           justifyContent: "center",
           transform: `translateX(${isDark ? 26 : 0}px)`,
-          transition: "transform 320ms cubic-bezier(0.22, 1, 0.36, 1), background 280ms ease, color 280ms ease",
+          transition:
+            "transform 320ms cubic-bezier(0.22, 1, 0.36, 1), background 280ms ease, color 280ms ease",
           boxShadow: isDark
             ? "0 1px 2px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)"
             : "0 1px 2px rgba(0,0,0,0.12)",
@@ -553,14 +752,39 @@ function ThemeSwitch({ theme, onToggle, t }: SwitchProps) {
   );
 }
 
-// ─── Keyframes (injected once) ────────────────────────────────────────
+// ─── Keyframes ────────────────────────────────────────────────────────
 
-let injected = false;
-function Keyframes() {
-  useEffect(() => {
-    if (injected) return;
-    const style = document.createElement("style");
-    style.textContent = `
+// Ramp: amplitude grows from 0 to ±1.5px while oscillation period shortens.
+// Mirrored by sign for left/right; scaled by jiggle intensity. Final stop
+// matches FAST_STOPS[0] so the steady-state loop hands off seamlessly.
+const RAMP_STOPS: ReadonlyArray<[number, number]> = [
+  [0, 0], [8, -0.3], [18, 0.2], [28, -0.45], [38, 0.3],
+  [48, -0.6], [57, 0.45], [65, -0.8], [72, 0.6],
+  [79, -1], [85, 0.75], [90, -1.2], [94, 0.9],
+  [97, -1.35], [100, -1.5],
+];
+
+const FAST_STOPS: ReadonlyArray<[number, number]> = [
+  [0, -1.5], [25, 1.2], [50, -1.5], [75, 1], [100, -1.5],
+];
+
+function buildJiggle(
+  name: string,
+  stops: ReadonlyArray<[number, number]>,
+  sign: 1 | -1,
+  intensity: number,
+) {
+  const body = stops
+    .map(
+      ([p, v]) =>
+        `  ${p}% { transform: translateX(${(v * sign * intensity).toFixed(3)}px); }`,
+    )
+    .join("\n");
+  return `@keyframes ${name} {\n${body}\n}`;
+}
+
+function buildKeyframesCSS(intensity: number) {
+  return `
 @keyframes ptArrowOutRight {
   0%   { transform: translateX(0);    opacity: 1; }
   30%  { transform: translateX(-5px); opacity: 1; }
@@ -571,58 +795,10 @@ function Keyframes() {
   30%  { transform: translateX(5px);   opacity: 1; }
   100% { transform: translateX(-22px); opacity: 0; }
 }
-/* Ramp: oscillation period shortens and amplitude grows continuously
-   over ~2.8s. No distinct phases — frequency increases monotonically so
-   acceleration feels smooth, not staged. Ends at the fast-loop start
-   offset so the handoff is seamless. */
-@keyframes ptArrowJiggleRampRight {
-  0%   { transform: translateX(0); }
-  8%   { transform: translateX(-0.3px); }
-  18%  { transform: translateX(0.2px); }
-  28%  { transform: translateX(-0.45px); }
-  38%  { transform: translateX(0.3px); }
-  48%  { transform: translateX(-0.6px); }
-  57%  { transform: translateX(0.45px); }
-  65%  { transform: translateX(-0.8px); }
-  72%  { transform: translateX(0.6px); }
-  79%  { transform: translateX(-1px); }
-  85%  { transform: translateX(0.75px); }
-  90%  { transform: translateX(-1.2px); }
-  94%  { transform: translateX(0.9px); }
-  97%  { transform: translateX(-1.35px); }
-  100% { transform: translateX(-1.5px); }
-}
-@keyframes ptArrowJiggleRampLeft {
-  0%   { transform: translateX(0); }
-  8%   { transform: translateX(0.3px); }
-  18%  { transform: translateX(-0.2px); }
-  28%  { transform: translateX(0.45px); }
-  38%  { transform: translateX(-0.3px); }
-  48%  { transform: translateX(0.6px); }
-  57%  { transform: translateX(-0.45px); }
-  65%  { transform: translateX(0.8px); }
-  72%  { transform: translateX(-0.6px); }
-  79%  { transform: translateX(1px); }
-  85%  { transform: translateX(-0.75px); }
-  90%  { transform: translateX(1.2px); }
-  94%  { transform: translateX(-0.9px); }
-  97%  { transform: translateX(1.35px); }
-  100% { transform: translateX(1.5px); }
-}
-@keyframes ptArrowJiggleFastRight {
-  0%   { transform: translateX(-1.5px); }
-  25%  { transform: translateX(1.2px); }
-  50%  { transform: translateX(-1.5px); }
-  75%  { transform: translateX(1px); }
-  100% { transform: translateX(-1.5px); }
-}
-@keyframes ptArrowJiggleFastLeft {
-  0%   { transform: translateX(1.5px); }
-  25%  { transform: translateX(-1.2px); }
-  50%  { transform: translateX(1.5px); }
-  75%  { transform: translateX(-1px); }
-  100% { transform: translateX(1.5px); }
-}
+${buildJiggle("ptArrowJiggleRampRight", RAMP_STOPS, 1, intensity)}
+${buildJiggle("ptArrowJiggleRampLeft", RAMP_STOPS, -1, intensity)}
+${buildJiggle("ptArrowJiggleFastRight", FAST_STOPS, 1, intensity)}
+${buildJiggle("ptArrowJiggleFastLeft", FAST_STOPS, -1, intensity)}
 @keyframes ptBackEnter {
   0%   { transform: translateX(-12px); opacity: 0; }
   100% { transform: translateX(0);     opacity: 1; }
@@ -652,23 +828,24 @@ function Keyframes() {
   bottom: var(--pt-underline-bottom, 0);
   height: 1px;
   background: var(--pt-underline, currentColor);
-  opacity: 0.3;
-  transition: opacity 200ms ease-out;
+  opacity: 0.7;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .pt-card:hover .pt-card__title::after,
 .pt-card:focus-visible .pt-card__title::after,
 .pt-back:hover .pt-back__label::after,
 .pt-back:focus-visible .pt-back__label::after {
-  opacity: 0.7;
+  transform: scaleX(1);
 }
 @media (prefers-reduced-motion: reduce) {
-  .pt-card__title::after, .pt-back__label::after { transition: none; }
+  .pt-card__title::after, .pt-back__label::after {
+    transition: none;
+    transform: scaleX(1);
+  }
   .pt-back { animation: none; }
   .pt-arrow { animation: none !important; }
 }
 `;
-    document.head.appendChild(style);
-    injected = true;
-  }, []);
-  return null;
 }
