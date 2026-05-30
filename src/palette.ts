@@ -136,4 +136,5 @@ export const demoPalettes = {
   "github-sparkline": { hue: HUES.vineyard, mode: "dark" as const, intensity: 1 as const },
   "page-transition": { hue: HUES.gold, mode: "light" as const, intensity: 0 as const },
   "git-toggle": { hue: HUES.violet, mode: "dark" as const, intensity: 1 as const },
+  "flock": { hue: HUES.sky, mode: "light" as const, intensity: 0 as const },
 } as const;

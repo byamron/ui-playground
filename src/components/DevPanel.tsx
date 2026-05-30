@@ -218,7 +218,7 @@ export function DevPanel({
           )}
           {controls}
 
-          {/* Tune button — inside sidebar when open */}
+          {/* Tune button — inside sidebar when open. */}
           <div style={{ marginTop: "auto", paddingTop: 8, display: "flex" }}>
             <TuneButton open={open} onClick={() => setOpen(false)} />
           </div>
@@ -736,5 +736,27 @@ export function DevDivider() {
         margin: "0 -2px",
       }}
     />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DevSectionLabel — small uppercase label for grouping controls inside the panel
+// ---------------------------------------------------------------------------
+
+export function DevSectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <span
+      style={{
+        fontSize: 9,
+        fontWeight: 600,
+        textTransform: "uppercase",
+        letterSpacing: "0.10em",
+        color: COLOR.muted,
+        marginTop: 2,
+        marginBottom: -4,
+      }}
+    >
+      {children}
+    </span>
   );
 }

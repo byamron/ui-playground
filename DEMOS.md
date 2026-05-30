@@ -38,6 +38,7 @@ Demos that have gone out on at least one channel. No demos are *Live* in the Arc
 | Slide to Unlock | `/slide-unlock` | Craft | — | Posted | URL only |
 | Theme Sidebar | `/theme-sidebar` | Craft | @Dia | Posted | — |
 | Page Transition | `/page-transition` | Craft | — | Posted | — |
+| Flock | `/flock` | Witty | @Twitter | Posted | — |
 
 ## Release roadmap
 
