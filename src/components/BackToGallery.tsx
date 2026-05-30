@@ -1,30 +1,28 @@
 import { useSyncExternalStore } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-
-// Demos can opt to hide the floating Back button (e.g., for clean screen
-// recordings) via setBackButtonHidden(true). BackToGallery owns its own
-// visibility check so callers don't need to reach into the DOM.
-let _hidden = false;
-const _subs = new Set<() => void>();
-export function setBackButtonHidden(hidden: boolean) {
-  if (_hidden === hidden) return;
-  _hidden = hidden;
-  _subs.forEach((cb) => cb());
-}
-function subscribe(cb: () => void) {
-  _subs.add(cb);
-  return () => { _subs.delete(cb); };
-}
+import {
+  getBackTint,
+  getBackVisible,
+  subscribeBack,
+  subscribeTint,
+} from "./chromeControl";
 
 // Floating "back" affordance rendered at the root of the app. Shows on
 // every route except the gallery itself. Top-left, fixed, neutral styling
 // so it sits on top of any demo without competing with the demo's own
-// visual language. Click → navigate to "/".
+// visual language. Click → navigate to "/". Individual demos can hide
+// this for clean recordings via setBackVisible() (see chromeControl).
 export function BackToGallery() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const hidden = useSyncExternalStore(subscribe, () => _hidden, () => false);
-  if (pathname === "/" || hidden) return null;
+  const visible = useSyncExternalStore(
+    subscribeBack,
+    getBackVisible,
+    getBackVisible,
+  );
+  const tint = useSyncExternalStore(subscribeTint, getBackTint, getBackTint);
+  if (pathname === "/") return null;
+  if (!visible) return null;
   return (
     <button
       type="button"
@@ -32,43 +30,43 @@ export function BackToGallery() {
       onClick={() => navigate("/")}
       style={{
         position: "fixed",
-        top: 16,
+        top: "calc(env(safe-area-inset-top, 0px) + 8px)",
         left: 16,
         zIndex: 1000,
+        width: 40,
+        height: 40,
         display: "inline-flex",
         alignItems: "center",
-        gap: 6,
-        padding: "8px 12px 8px 10px",
-        borderRadius: 999,
-        background: "rgba(20, 20, 22, 0.72)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-        border: "1px solid rgba(255, 255, 255, 0.14)",
-        color: "rgba(255, 255, 255, 0.9)",
-        fontFamily: `"IBM Plex Mono", "SF Mono", ui-monospace, monospace`,
-        fontSize: 12,
-        letterSpacing: "0.08em",
+        justifyContent: "center",
+        padding: 0,
+        background: "transparent",
+        border: "none",
         cursor: "pointer",
-        boxShadow: "0 4px 14px rgba(0, 0, 0, 0.35)",
-        transition:
-          "transform 0.18s cubic-bezier(.5,1.4,.5,1), background 0.18s ease",
+        transition: "transform 0.18s cubic-bezier(.5,1.4,.5,1)",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "scale(1.04)";
-        e.currentTarget.style.background = "rgba(30, 30, 34, 0.85)";
+        e.currentTarget.style.transform = "scale(1.08)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "scale(1)";
-        e.currentTarget.style.background = "rgba(20, 20, 22, 0.72)";
       }}
     >
-      <span
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
         aria-hidden
-        style={{ fontSize: 14, lineHeight: 1, marginTop: -1 }}
+        style={{ marginLeft: -2 }}
       >
-        ←
-      </span>
-      <span>BACK</span>
+        <path
+          d="M14.5 6L8.5 12L14.5 18"
+          stroke={tint}
+          strokeWidth="1.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
     </button>
   );
 }

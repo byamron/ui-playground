@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type ReactNode } from "react";
+import { useState, useCallback, useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { text } from "../palette";
 
@@ -44,7 +44,31 @@ const COLOR = {
 // TuneButton — shared toggle, same appearance in both positions
 // ---------------------------------------------------------------------------
 
-function TuneButton({ open, onClick }: { open: boolean; onClick: () => void }) {
+function TuneButton({
+  open,
+  onClick,
+  elevated = false,
+}: {
+  open: boolean;
+  onClick: () => void;
+  elevated?: boolean;
+}) {
+  // The closed-state button floats over the demo on any background, so it
+  // needs a solid dark-glass treatment to stay legible (white text on light
+  // demo bgs is invisible). Inside the panel, the subtle treatment blends
+  // with the panel's own surface.
+  const surface = elevated
+    ? {
+        background: "rgba(20, 20, 22, 0.72)",
+        border: "1px solid rgba(255, 255, 255, 0.14)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+        boxShadow: "0 4px 14px rgba(0, 0, 0, 0.25)",
+      }
+    : {
+        background: "rgba(255,255,255,0.04)",
+        border: `1px solid ${PANEL.border}`,
+      };
   return (
     <motion.button
       onClick={onClick}
@@ -53,11 +77,7 @@ function TuneButton({ open, onClick }: { open: boolean; onClick: () => void }) {
       whileHover={{ scale: 1.04 }}
       whileTap={{ scale: 0.96 }}
       style={{
-        // Dark glass chip — readable against both light and dark demo backgrounds.
-        background: "rgba(8, 8, 10, 0.78)",
-        backdropFilter: `blur(${PANEL.blur})`,
-        WebkitBackdropFilter: `blur(${PANEL.blur})`,
-        border: "1px solid rgba(255, 255, 255, 0.10)",
+        ...surface,
         borderRadius: 10,
         padding: "7px 12px",
         color: COLOR.primary,
@@ -90,42 +110,37 @@ function TuneButton({ open, onClick }: { open: boolean; onClick: () => void }) {
 //   </DevPanel>
 // ---------------------------------------------------------------------------
 
-type OpenTrigger = "button" | "edge";
-const TRIGGER_STORAGE_KEY = "ui-playground:devpanel-trigger";
-const EDGE_ZONE_WIDTH = 18;
-
-function readStoredTrigger(): OpenTrigger {
-  if (typeof window === "undefined") return "button";
-  const stored = window.localStorage.getItem(TRIGGER_STORAGE_KEY);
-  return stored === "edge" ? "edge" : "button";
-}
-
 export function DevPanel({
   label,
   children,
   controls,
   defaultOpen = true,
   background,
+  hideTuneButton = false,
 }: {
   label?: string;
   children: ReactNode;
   controls: ReactNode;
   defaultOpen?: boolean;
   background?: string;
+  // When true, the floating "Tune" button is hidden for clean recording.
+  // The panel can still be revealed by pushing the mouse to the right
+  // edge of the viewport (within EDGE_REVEAL_PX).
+  hideTuneButton?: boolean;
 }) {
-  const [openTrigger, setOpenTrigger] = useState<OpenTrigger>(readStoredTrigger);
   const [open, setOpen] = useState(defaultOpen);
 
   useEffect(() => {
-    try { window.localStorage.setItem(TRIGGER_STORAGE_KEY, openTrigger); } catch {}
-  }, [openTrigger]);
-
-  // In edge mode the panel auto-closes when the cursor leaves it, so we
-  // start collapsed regardless of `defaultOpen` (otherwise the panel sits
-  // open until first interaction and feels stuck).
-  useEffect(() => {
-    if (openTrigger === "edge") setOpen(false);
-  }, [openTrigger]);
+    if (!hideTuneButton || open) return;
+    const EDGE_REVEAL_PX = 20;
+    const onMove = (e: MouseEvent) => {
+      if (window.innerWidth - e.clientX <= EDGE_REVEAL_PX) {
+        setOpen(true);
+      }
+    };
+    document.addEventListener("mousemove", onMove);
+    return () => document.removeEventListener("mousemove", onMove);
+  }, [hideTuneButton, open]);
 
   return (
     <div
@@ -157,7 +172,10 @@ export function DevPanel({
         animate={{ width: open ? SIDEBAR_WIDTH : 0 }}
         transition={{ duration: 0.3, ease: [0.2, 0, 0, 1] }}
         onMouseLeave={() => {
-          if (openTrigger === "edge") setOpen(false);
+          // In tune-hidden mode the panel acts as a pure hover region:
+          // mouse to right edge opens it, leaving the panel closes it.
+          // In normal mode the button stays the only way to dismiss.
+          if (hideTuneButton) setOpen(false);
         }}
         style={{
           overflow: "hidden",
@@ -200,54 +218,24 @@ export function DevPanel({
           )}
           {controls}
 
-          <DevDivider />
-          <DevButtonGroup<OpenTrigger>
-            label="Panel"
-            value={openTrigger}
-            onChange={setOpenTrigger}
-            options={[
-              { label: "Button", value: "button" },
-              { label: "Edge", value: "edge" },
-            ]}
-          />
-
-          {/* Tune button — inside sidebar when open. In edge mode the
-              cursor closes the panel by leaving, so the explicit button
-              is redundant. */}
-          {openTrigger === "button" && (
-            <div style={{ marginTop: "auto", paddingTop: 8, display: "flex" }}>
-              <TuneButton open={open} onClick={() => setOpen(false)} />
-            </div>
-          )}
+          {/* Tune button — inside sidebar when open. */}
+          <div style={{ marginTop: "auto", paddingTop: 8, display: "flex" }}>
+            <TuneButton open={open} onClick={() => setOpen(false)} />
+          </div>
         </div>
       </motion.aside>
 
-      {/* Closed-state triggers */}
-      {!open && openTrigger === "button" && (
+      {/* Tune button — fixed bottom-right when sidebar is closed.
+          Suppressed when hideTuneButton is set so the recording frame is
+          clean; right-edge mouse reveal (above) brings the panel back. */}
+      {!open && !hideTuneButton && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           style={{ position: "fixed", bottom: 16, right: 16, zIndex: 100 }}
         >
-          <TuneButton open={false} onClick={() => setOpen(true)} />
+          <TuneButton open={false} onClick={() => setOpen(true)} elevated />
         </motion.div>
-      )}
-
-      {/* Invisible hover strip along the right edge — opens the panel
-          when the cursor approaches. Only present in edge mode. */}
-      {!open && openTrigger === "edge" && (
-        <div
-          aria-hidden="true"
-          onMouseEnter={() => setOpen(true)}
-          style={{
-            position: "fixed",
-            top: 0,
-            right: 0,
-            width: EDGE_ZONE_WIDTH,
-            height: "100%",
-            zIndex: 99,
-          }}
-        />
       )}
     </div>
   );

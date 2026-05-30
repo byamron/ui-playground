@@ -23,6 +23,7 @@ import {
   DevButton,
 } from "../../components/DevPanel";
 import contributionData from "./contributions.json";
+import { setBackVisible } from "../../components/chromeControl";
 
 /**
  * GitHub Sparkline — re-aligned with the portfolio's ContributionHeatmap.
@@ -33,9 +34,60 @@ import contributionData from "./contributions.json";
  * itself never moves. Every click re-fires the shake-and-settle.
  */
 
-const HUE = 34;
-const BG_COLOR = bg(demoPalettes["github-sparkline"]);
+const HUE = 90;
+const DEFAULT_MODE = demoPalettes["github-sparkline"].mode;
 const YEAR = 2026;
+
+type Mode = "dark" | "light";
+
+interface Theme {
+  bg: string;
+  text: string;
+  tooltipText: string;
+  tooltipBorder: string;
+  chipBg: string;
+  cellEmpty: string;
+  todayStroke: string;
+  hoverFill: string;
+  focusStroke: string;
+  containerBgActive: string;
+  containerBorderActive: string;
+  containerBorderRest: string;
+}
+
+function themeFor(mode: Mode): Theme {
+  const bgColor = bg({ hue: HUE, mode, intensity: 1 });
+  if (mode === "dark") {
+    return {
+      bg: bgColor,
+      text: "hsl(240, 2%, 78%)",
+      tooltipText: "hsl(0, 0%, 95%)",
+      tooltipBorder: "hsl(0, 0%, 30%)",
+      chipBg: `hsla(${HUE}, 14%, 78%, 0.09)`,
+      cellEmpty: `hsla(${HUE}, 8%, 55%, 0.06)`,
+      todayStroke: "hsla(0, 0%, 95%, 0.85)",
+      hoverFill: "rgba(255,255,255,0.18)",
+      focusStroke: "hsl(0, 0%, 95%)",
+      containerBgActive: "rgba(255,255,255,0.05)",
+      containerBorderActive: "rgba(255,255,255,0.09)",
+      containerBorderRest: "rgba(255,255,255,0.05)",
+    };
+  }
+  return {
+    bg: bgColor,
+    text: "hsl(240, 3%, 28%)",
+    tooltipText: "hsl(0, 0%, 12%)",
+    tooltipBorder: "hsla(0, 0%, 0%, 0.18)",
+    chipBg: `hsla(${HUE}, 30%, 35%, 0.10)`,
+    cellEmpty: `hsla(${HUE}, 10%, 45%, 0.10)`,
+    todayStroke: "hsla(0, 0%, 10%, 0.75)",
+    hoverFill: "rgba(0,0,0,0.10)",
+    focusStroke: "hsl(0, 0%, 10%)",
+    containerBgActive: "rgba(0,0,0,0.04)",
+    containerBorderActive: "rgba(0,0,0,0.10)",
+    containerBorderRest: "rgba(0,0,0,0.05)",
+  };
+}
 
 // All visual dimensions scaled 1.5× from the original to make the demo
 // pop on screen during recording. Heatmap cells scale through the
@@ -102,6 +154,11 @@ const TWEEN_SPEED_OPTIONS: { label: string; value: TweenSpeed }[] = [
   { label: "Snappy", value: "snappy" },
   { label: "Considered", value: "considered" },
   { label: "Deliberate", value: "deliberate" },
+];
+
+const MODE_OPTIONS: { label: string; value: Mode }[] = [
+  { label: "Dark", value: "dark" },
+  { label: "Light", value: "light" },
 ];
 
 // Durations mapped to HCI perceptual bands. The count and dial each get
@@ -218,8 +275,8 @@ function buildYearGrid(year: number) {
   };
 }
 
-function contribFill(count: number, max: number): string {
-  if (count === 0) return `hsla(${HUE}, 8%, 55%, 0.06)`;
+function contribFill(count: number, max: number, theme: Theme): string {
+  if (count === 0) return theme.cellEmpty;
   const intensity = Math.sqrt(count / max);
   const alpha = 0.18 + intensity * 0.72;
   const sat = 35 + intensity * 45;
@@ -270,6 +327,7 @@ interface SparklineProps {
   maxBinned: number;
   animKey: number;
   tuning: Tuning;
+  theme: Theme;
 }
 
 /**
@@ -284,6 +342,7 @@ function Sparkline({
   maxBinned,
   animKey,
   tuning,
+  theme,
 }: SparklineProps) {
   // viewBox width derives from the bar count; the SVG renders at 100% of
   // its parent and uses preserveAspectRatio="none", so bars auto-stretch
@@ -349,7 +408,7 @@ function Sparkline({
             x={i * SPARK_BAR_STEP}
             width={SPARK_BAR_W}
             rx={0.5}
-            fill={contribFill(total, maxBinned)}
+            fill={contribFill(total, maxBinned, theme)}
             initial={{ y: SPARK_HEIGHT - startH, height: startH }}
             animate={{ y: SPARK_HEIGHT - h, height: h }}
             transition={{
@@ -435,7 +494,9 @@ function DigitWheel({
 
 /** Counts up to `value` via an explicitly-tweened motion value. Uses
  *  easeOutExpo so the digits start moving immediately and settle slowly
- *  — feels intentional, not mechanical. */
+ *  — feels intentional, not mechanical. Proportional digits (no tabular
+ *  nums) so "1" sits next to "2" with natural kerning — Onest's tabular
+ *  slot is too wide and reads as a typo. */
 function CountingNumber({
   value,
   duration,
@@ -452,11 +513,7 @@ function CountingNumber({
     return () => controls.stop();
   }, [value, mv, duration]);
   const display = useTransform(mv, (v) => Math.round(v).toString());
-  return (
-    <motion.span style={{ fontVariantNumeric: "tabular-nums" }}>
-      {display}
-    </motion.span>
-  );
+  return <motion.span>{display}</motion.span>;
 }
 
 /** Renders an integer as a row of digit-wheels. Wheels are keyed by
@@ -568,14 +625,21 @@ export function GithubSparkline() {
   const [headerHeight, setHeaderHeight] = useState(48);
   useLayoutEffect(() => {
     if (!headerRef.current) return;
-    const measure = () => {
-      if (headerRef.current) setHeaderHeight(headerRef.current.offsetHeight);
-    };
+    const el = headerRef.current;
+    const measure = () => setHeaderHeight(el.offsetHeight);
     measure();
     const ro = new ResizeObserver(measure);
-    ro.observe(headerRef.current);
+    ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Container width drives the analytical drawer-height calc below. The
+  // heatmap SVG renders at width: 100% with viewBox aspect, so its
+  // rendered height is svgWidth * (HEATMAP_HEIGHT / HEATMAP_WIDTH).
+  // Computing this without mounting the drawer lets us offset the
+  // container so the EXPANDED element is centered on the page — the
+  // collapsed header sits above center by drawer/2.
+  const [containerWidth, setContainerWidth] = useState(0);
 
   const [shakeIntensity, setShakeIntensity] = useState(
     DEFAULTS.shakeIntensity,
@@ -610,6 +674,19 @@ export function GithubSparkline() {
     useState<TooltipTransition>("tween");
   const [tweenDial, setTweenDial] = useState(false);
   const [tweenSpeed, setTweenSpeed] = useState<TweenSpeed>("considered");
+
+  const [mode, setMode] = useState<Mode>(DEFAULT_MODE);
+  const theme = useMemo(() => themeFor(mode), [mode]);
+
+  // Recording chrome — toggles to clean the frame for screen capture.
+  // When the tune button is hidden the panel still opens via right-edge
+  // mouse reveal (see DevPanel).
+  const [showBackButton, setShowBackButton] = useState(true);
+  const [showTuneButton, setShowTuneButton] = useState(true);
+  useEffect(() => {
+    setBackVisible(showBackButton);
+    return () => setBackVisible(true);
+  }, [showBackButton]);
 
   const ytdDays = useMemo(() => {
     const now = new Date();
@@ -678,6 +755,9 @@ export function GithubSparkline() {
     setTooltipTransition("tween");
     setTweenDial(false);
     setTweenSpeed("considered");
+    setShowBackButton(true);
+    setShowTuneButton(true);
+    setMode(DEFAULT_MODE);
   }, []);
 
   const outerRef = useRef<HTMLDivElement>(null);
@@ -685,6 +765,29 @@ export function GithubSparkline() {
 
   const HEATMAP_WIDTH = grid.length * CELL_STEP - CELL_GAP;
   const HEATMAP_HEIGHT = 7 * CELL_STEP - CELL_GAP;
+
+  useLayoutEffect(() => {
+    if (!outerRef.current) return;
+    const el = outerRef.current;
+    const measure = () => setContainerWidth(el.offsetWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Drawer inner padding is "6px 27px 27px" (top, sides, bottom). The
+  // heatmap SVG fills the remaining inner width and scales to its
+  // viewBox aspect ratio.
+  const DRAWER_PAD_TOP = 6;
+  const DRAWER_PAD_BOTTOM = 27;
+  const DRAWER_PAD_H = 27;
+  const drawerSvgWidth = Math.max(0, containerWidth - DRAWER_PAD_H * 2);
+  const drawerSvgHeight =
+    HEATMAP_WIDTH > 0 ? drawerSvgWidth * (HEATMAP_HEIGHT / HEATMAP_WIDTH) : 0;
+  const drawerHeight =
+    drawerSvgWidth > 0 ? DRAWER_PAD_TOP + drawerSvgHeight + DRAWER_PAD_BOTTOM : 0;
+  const totalHeight = headerHeight + drawerHeight;
 
   const toggle = useCallback(() => {
     setExpandAnimDone(false);
@@ -696,7 +799,7 @@ export function GithubSparkline() {
     "'Onest', system-ui, -apple-system, 'Helvetica Neue', sans-serif";
   const monoFamily =
     "'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace";
-  const textColor = "hsl(240, 2%, 78%)";
+  const textColor = theme.text;
 
   const placeTooltip = useCallback((rect: DOMRect, text: string) => {
     const outer = outerRef.current;
@@ -834,17 +937,18 @@ export function GithubSparkline() {
   // without competing with content). On hover/expand: fill enters as the
   // confirmation reward for committing to the click.
   const containerBg =
-    isExpanded || isHovering ? "rgba(255,255,255,0.05)" : "transparent";
+    isExpanded || isHovering ? theme.containerBgActive : "transparent";
   const containerBorder =
     isExpanded || isHovering
-      ? "rgba(255,255,255,0.09)"
-      : "rgba(255,255,255,0.05)";
+      ? theme.containerBorderActive
+      : theme.containerBorderRest;
 
   return (
     <DevPanel
       label="GitHub Sparkline"
-      background={BG_COLOR}
+      background={theme.bg}
       defaultOpen={false}
+      hideTuneButton={!showTuneButton}
       controls={
         <>
           <DevSlider
@@ -927,6 +1031,23 @@ export function GithubSparkline() {
             onChange={setTweenSpeed}
           />
           <DevDivider />
+          <DevButtonGroup<Mode>
+            label="Appearance"
+            options={MODE_OPTIONS}
+            value={mode}
+            onChange={setMode}
+          />
+          <DevToggle
+            label="Show back button"
+            checked={showBackButton}
+            onChange={setShowBackButton}
+          />
+          <DevToggle
+            label="Show tune button"
+            checked={showTuneButton}
+            onChange={setShowTuneButton}
+          />
+          <DevDivider />
           <DevButton
             label="Reset to defaults"
             onClick={resetToDefaults}
@@ -942,7 +1063,10 @@ export function GithubSparkline() {
           top: "50%",
           left: "50%",
           transform: "translateX(-50%)",
-          marginTop: `-${headerHeight / 2}px`,
+          // Offset by half the EXPANDED height so the expanded element
+          // centers on the page. Header stays at this Y in both states;
+          // when collapsed it sits above viewport center by drawer/2.
+          marginTop: `-${totalHeight / 2}px`,
           // Tight mode lets the row shrink to fit its content so the
           // sparkline ends naturally adjacent to the chevron — proximity
           // preserved AND right-edge implicitly aligned.
@@ -996,7 +1120,7 @@ export function GithubSparkline() {
                 // Subtle warm tint so the chip integrates with the
                 // gold sparkline/container palette rather than reading
                 // as a cool neutral inserted into a warm field.
-                background: `hsla(${HUE}, 14%, 78%, 0.09)`,
+                background: theme.chipBg,
                 padding: "3px 9px",
                 borderRadius: 6,
                 // 10px margin + ~6px from the natural space character
@@ -1033,6 +1157,7 @@ export function GithubSparkline() {
               maxBinned={maxBinned}
               animKey={sparkAnimKey}
               tuning={tuning}
+              theme={theme}
             />
           </span>
 
@@ -1193,7 +1318,7 @@ export function GithubSparkline() {
                               width={CELL_SIZE}
                               height={CELL_SIZE}
                               rx={3}
-                              fill={contribFill(cell.count, maxCount)}
+                              fill={contribFill(cell.count, maxCount, theme)}
                               data-date={cell.date}
                               data-week={w}
                               data-day={d}
@@ -1226,7 +1351,7 @@ export function GithubSparkline() {
                             width={CELL_SIZE}
                             height={CELL_SIZE}
                             rx={3}
-                            fill={contribFill(cell.count, maxCount)}
+                            fill={contribFill(cell.count, maxCount, theme)}
                             data-date={cell.date}
                             data-week={w}
                             data-day={d}
@@ -1242,7 +1367,7 @@ export function GithubSparkline() {
                         height={CELL_SIZE - 3}
                         rx={2}
                         fill="none"
-                        stroke="hsla(0, 0%, 95%, 0.85)"
+                        stroke={theme.todayStroke}
                         strokeWidth={1.5}
                         style={{ pointerEvents: "none" }}
                       />
@@ -1255,7 +1380,7 @@ export function GithubSparkline() {
                           width={CELL_SIZE}
                           height={CELL_SIZE}
                           rx={3}
-                          fill="rgba(255,255,255,0.18)"
+                          fill={theme.hoverFill}
                           style={{ pointerEvents: "none" }}
                         />
                       )}
@@ -1268,7 +1393,7 @@ export function GithubSparkline() {
                           height={CELL_SIZE + 3}
                           rx={4}
                           fill="none"
-                          stroke="hsl(0, 0%, 95%)"
+                          stroke={theme.focusStroke}
                           strokeWidth={2}
                           style={{ pointerEvents: "none" }}
                         />
@@ -1316,15 +1441,15 @@ export function GithubSparkline() {
               >
                 <div
                   style={{
-                    padding: "9px 15px",
-                    borderRadius: 9,
-                    fontSize: 18,
+                    padding: "6px 10px",
+                    borderRadius: 7,
+                    fontSize: 14,
                     fontFamily,
                     fontWeight: 400,
                     lineHeight: 1.3,
-                    color: "hsl(0, 0%, 95%)",
-                    background: BG_COLOR,
-                    border: "1px solid hsl(0, 0%, 30%)",
+                    color: theme.tooltipText,
+                    background: theme.bg,
+                    border: `1px solid ${theme.tooltipBorder}`,
                     boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
                     whiteSpace: "nowrap",
                   }}

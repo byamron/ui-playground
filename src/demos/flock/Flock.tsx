@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { DevPanel, DevSlider, DevButtonGroup, DevButton, DevDivider, DevSectionLabel } from "../../components/DevPanel";
-import { setBackButtonHidden } from "../../components/BackToGallery";
+import { setBackVisible } from "../../components/chromeControl";
 import { bg, HUES } from "../../palette";
 import {
   setupGlassHighlight,
@@ -1072,12 +1072,11 @@ export function Flock() {
   // View toggles (not tied to a Flock behavior — these affect chrome only).
   const [backButtonOn, setBackButtonOn] = useState(true);
 
-  // Tell the Back-button component to hide itself; it has its own
-  // visibility check (pathname + this hidden flag) and re-renders on
-  // change. Restore on unmount so leaving the demo brings it back.
+  // Drive the global Back-button visibility via the shared chromeControl
+  // store. Restore on unmount so leaving the demo brings it back.
   useEffect(() => {
-    setBackButtonHidden(!backButtonOn);
-    return () => setBackButtonHidden(false);
+    setBackVisible(backButtonOn);
+    return () => setBackVisible(true);
   }, [backButtonOn]);
 
   // Shatter layer + API — physics-based glass break-apart at burst time.
