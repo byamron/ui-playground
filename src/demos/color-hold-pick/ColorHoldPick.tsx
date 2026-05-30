@@ -6,6 +6,7 @@ import {
   useAnimationControls,
   useMotionValue,
   useMotionTemplate,
+  useReducedMotion,
   useTransform,
   useVelocity,
   useSpring,
@@ -134,10 +135,17 @@ const PRESETS: Record<Appearance, { id: PresetId; color: string }[]> = {
 
 // ── Fonts ─────────────────────────────────────────────────────────────────
 
+// dy: per-font optical correction so each "Aa" sits visually centered in
+// its swatch. Serif/slab faces draw their baseline higher relative to the
+// em-box, so they need a downward nudge to optically match the sans.
 const FONTS = [
-  { label: "Sans", family: `'Figtree', ${FONT}` },
-  { label: "Serif", family: "'Iowan Old Style', Georgia, 'Times New Roman', serif" },
-  { label: "Slab", family: "'Bookman Old Style', 'Palatino', serif" },
+  { label: "Sans", family: `'Figtree', ${FONT}`, dy: 0 },
+  {
+    label: "Serif",
+    family: "'Iowan Old Style', Georgia, 'Times New Roman', serif",
+    dy: 1,
+  },
+  { label: "Slab", family: "'Bookman Old Style', 'Palatino', serif", dy: 1 },
 ] as const;
 
 // ── Rainbow + Spectrum ────────────────────────────────────────────────────
@@ -182,6 +190,21 @@ function oklchToRgb(L: number, C: number, h: number): [number, number, number] {
   ];
 }
 
+// Sample the spectrum at normalized (hue, t) — both 0..1. Used both for
+// the live pick (via colorFromPos which wraps this with pixel coords)
+// and for transposing a custom color across an appearance toggle.
+function sampleSpectrum(huN: number, tN: number, t: Tokens): string {
+  const hueDeg = Math.max(0, Math.min(1, huN)) * 360;
+  const tv = Math.max(0, Math.min(1, tN));
+  const [br, bg, bb] = oklchToRgb(t.L_BASE, t.C_BASE, hueDeg);
+  const [or, og, ob] = t.overlayRGB.split(",").map(Number);
+  const ov = t.overlayAlpha * (t.overlayAtBottom ? tv : 1 - tv);
+  const r = Math.round(or * ov + br * (1 - ov));
+  const g = Math.round(og * ov + bg * (1 - ov));
+  const b = Math.round(ob * ov + bb * (1 - ov));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
 function colorFromPos(
   x: number,
   y: number,
@@ -189,15 +212,7 @@ function colorFromPos(
   h: number,
   t: Tokens
 ): string {
-  const hue = Math.max(0, Math.min(360, (x / w) * 360));
-  const tv = Math.max(0, Math.min(1, y / h));
-  const [br, bg, bb] = oklchToRgb(t.L_BASE, t.C_BASE, hue);
-  const [or, og, ob] = t.overlayRGB.split(",").map(Number);
-  const ov = t.overlayAlpha * (t.overlayAtBottom ? tv : 1 - tv);
-  const r = Math.round(or * ov + br * (1 - ov));
-  const g = Math.round(og * ov + bg * (1 - ov));
-  const b = Math.round(ob * ov + bb * (1 - ov));
-  return `rgb(${r}, ${g}, ${b})`;
+  return sampleSpectrum(x / w, y / h, t);
 }
 
 // ── Status bar ────────────────────────────────────────────────────────────
@@ -286,26 +301,56 @@ function Swatch({
 }) {
   const controls = useAnimationControls();
   const wasSelected = useRef(selected);
+  const tapPulseRef = useRef(false);
+  const reducedMotion = useReducedMotion();
   useEffect(() => {
     if (selected && !wasSelected.current) {
+      if (tapPulseRef.current) {
+        // Tap already fired the visible pulse; skip the claim pulse so we
+        // don't stack two animations on the same swatch.
+        tapPulseRef.current = false;
+      } else if (reducedMotion) {
+        controls.start({
+          scale: 1,
+          transition: { type: "spring", stiffness: 480, damping: 30 },
+        });
+      } else {
+        // Backout path — the previously-selected preset wasn't tapped but
+        // it's claiming itself again. Quiet beat.
+        controls.start({
+          scale: [1, 1.04, 1],
+          transition: {
+            duration: 0.32,
+            times: [0, 0.4, 1],
+            ease: [0.2, 0.8, 0.2, 1],
+          },
+        });
+      }
+    }
+    wasSelected.current = selected;
+  }, [selected, controls, reducedMotion]);
+
+  const handleClick = () => {
+    if (!reducedMotion) {
+      tapPulseRef.current = true;
+      // Click-driven pulse — plays to completion regardless of press
+      // duration, so even an instant tap shows a clear scale-up beat.
       controls.start({
-        scale: [1, 1.08, 1],
+        scale: [1, 1.12, 1],
         transition: {
-          duration: 0.38,
-          times: [0, 0.32, 1],
+          duration: 0.22,
+          times: [0, 0.45, 1],
           ease: [0.2, 0.8, 0.2, 1],
         },
       });
     }
-    wasSelected.current = selected;
-  }, [selected, controls]);
+    onClick();
+  };
 
   return (
     <motion.button
       animate={controls}
-      whileTap={{ scale: 0.94 }}
-      transition={{ type: "spring", stiffness: 520, damping: 30 }}
-      onClick={onClick}
+      onClick={handleClick}
       aria-label={ariaLabel}
       aria-pressed={selected}
       style={{
@@ -423,12 +468,17 @@ function useIsMobile() {
 
 export function ColorHoldPick() {
   const isMobile = useIsMobile();
+  const reducedMotion = useReducedMotion();
+  const reducedMotionRef = useRef(!!reducedMotion);
+  reducedMotionRef.current = !!reducedMotion;
   const [appearance, setAppearance] = useState<Appearance>("light");
   const [corners, setCorners] = useState<"rounded" | "sharp">("rounded");
   const [fontIdx, setFontIdx] = useState<0 | 1 | 2>(0);
   const [appColor, setAppColor] = useState<string>(PRESETS.light[0].color);
   const [selected, setSelected] = useState<Selected>("blue");
   const [picking, setPicking] = useState(false);
+  const pickingRef = useRef(picking);
+  pickingRef.current = picking;
   const [measured, setMeasured] = useState(false);
 
   const tokens = TOKENS[appearance];
@@ -495,7 +545,11 @@ export function ColorHoldPick() {
   );
 
   useEffect(() => {
-    fmAnimate(pickingMV, picking ? 1 : 0, { duration: 0.2 });
+    fmAnimate(pickingMV, picking ? 1 : 0, {
+      type: "spring",
+      stiffness: 360,
+      damping: 28,
+    });
   }, [picking, pickingMV]);
 
   // Rainbow selection ring — sits behind the handle, centered on it.
@@ -546,6 +600,34 @@ export function ColorHoldPick() {
     };
   }, []);
 
+  // Capture whatever the host page had set before we mounted so we can
+  // restore those exact values on unmount, instead of clobbering them.
+  const priorBodyBgRef = useRef<string>("");
+  const priorSafariTintRef = useRef<string>("");
+  const priorThemeColorRef = useRef<string>("");
+  useEffect(() => {
+    priorBodyBgRef.current = document.body.style.backgroundColor;
+    priorSafariTintRef.current =
+      document.documentElement.style.getPropertyValue("--safari-tint");
+    const meta = document.querySelector('meta[name="theme-color"]');
+    priorThemeColorRef.current = meta?.getAttribute("content") ?? "";
+    return () => {
+      // Restore — not removeProperty, which would clobber any inherited bg
+      // the host gallery shell had inline.
+      document.body.style.backgroundColor = priorBodyBgRef.current;
+      if (priorSafariTintRef.current) {
+        document.documentElement.style.setProperty(
+          "--safari-tint",
+          priorSafariTintRef.current
+        );
+      } else {
+        document.documentElement.style.removeProperty("--safari-tint");
+      }
+      const m = document.querySelector('meta[name="theme-color"]');
+      if (m) m.setAttribute("content", priorThemeColorRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     document.documentElement.style.setProperty("--safari-tint", appColor);
     document.body.style.backgroundColor = appColor;
@@ -555,14 +637,6 @@ export function ColorHoldPick() {
     const themeMeta = document.querySelector('meta[name="theme-color"]');
     if (themeMeta) themeMeta.setAttribute("content", appColor);
   }, [appColor]);
-  useEffect(() => {
-    return () => {
-      document.documentElement.style.removeProperty("--safari-tint");
-      document.body.style.removeProperty("background-color");
-      const themeMeta = document.querySelector('meta[name="theme-color"]');
-      if (themeMeta) themeMeta.setAttribute("content", "#0a0a0a");
-    };
-  }, []);
 
   // Card offset within the phone surface.
   const cardOffsetRef = useRef({ x: 0, y: 0 });
@@ -574,6 +648,11 @@ export function ColorHoldPick() {
     color: PRESETS.light[0].color,
     selected: "blue",
   });
+
+  // Most recent custom pick position, normalized 0..1 in (hue, t). Stored
+  // so we can transpose a custom color to its equivalent in the other
+  // appearance when the user toggles light/dark.
+  const customPickRef = useRef<{ hu: number; t: number } | null>(null);
 
   // Track the in-flight gesture so we can tear it down on unmount —
   // otherwise the hold timer can fire on a dead component.
@@ -595,7 +674,7 @@ export function ColorHoldPick() {
     };
   }, []);
 
-  useLayoutEffect(() => {
+  const measure = useCallback(() => {
     if (!slotRef.current || !phoneRef.current || !cardRef.current) return;
     const slot = slotRef.current.getBoundingClientRect();
     const phone = phoneRef.current.getBoundingClientRect();
@@ -604,10 +683,43 @@ export function ColorHoldPick() {
     const sy = slot.top - phone.top + slot.height / 2;
     slotPosRef.current = { x: sx, y: sy };
     cardOffsetRef.current = { x: card.left - phone.left, y: card.top - phone.top };
-    x.set(sx - SWATCH_R);
-    y.set(sy - SWATCH_R);
+    // Only snap the handle to slot when idle. During an active pick the
+    // user owns the position — re-measuring would yank the handle.
+    if (!pickingRef.current) {
+      x.set(sx - SWATCH_R);
+      y.set(sy - SWATCH_R);
+    }
     setMeasured(true);
   }, [x, y]);
+
+  useLayoutEffect(() => {
+    measure();
+  }, [measure]);
+
+  // Invitation pulse — once, ~2.5s after mount, breathe the handle
+  // gently to teach the press-and-hold affordance without forcing the
+  // user to fail-tap first. Cancels if the user engages first or if
+  // reduced motion is on.
+  useEffect(() => {
+    if (reducedMotionRef.current) return;
+    const timer = window.setTimeout(() => {
+      if (pickingRef.current) return;
+      if (handleScale.get() !== 1) return;
+      fmAnimate(handleScale, [1, 1.04, 1], {
+        duration: 0.9,
+        times: [0, 0.45, 1],
+        ease: [0.32, 0.72, 0, 1],
+      });
+    }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [handleScale]);
+
+  useEffect(() => {
+    if (!phoneRef.current) return;
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(phoneRef.current);
+    return () => ro.disconnect();
+  }, [measure]);
 
   // Pointer-down on the rainbow swatch. Doesn't enter picker mode immediately
   // — waits for either HOLD_DELAY ms or MOVE_THRESHOLD px of motion. A quick
@@ -628,11 +740,12 @@ export function ColorHoldPick() {
       movedRef.current = false;
 
       // Press-down squish — matches the swatch idiom so the handle feels
-      // like the same family of control as the presets.
-      fmAnimate(handleScale, 0.94, {
+      // like the same family of control as the presets. Softer spring so
+      // the press eases in rather than snapping.
+      fmAnimate(handleScale, 1.08, {
         type: "spring",
-        stiffness: 600,
-        damping: 32,
+        stiffness: 380,
+        damping: 26,
       });
 
       let entered = false;
@@ -646,22 +759,38 @@ export function ColorHoldPick() {
         const cy = Math.max(0, Math.min(card.height, clientY - card.top));
         revealCX.set(cx);
         revealCY.set(cy);
-        fmAnimate(revealR, Math.hypot(card.width, card.height) * 2.2, {
-          duration: 0.29,
-          ease: [0.32, 0.72, 0, 1],
-        });
         x.set(cx + cardOffsetRef.current.x - SWATCH_R);
         y.set(cy + cardOffsetRef.current.y - SWATCH_R);
         setAppColor(
           colorFromPos(cx, cy, card.width, card.height, tokensRef.current)
         );
+        customPickRef.current = {
+          hu: cx / card.width,
+          t: cy / card.height,
+        };
         setSelected("custom");
         setPicking(true);
-        fmAnimate(handleScale, 1.18, {
-          type: "spring",
-          stiffness: 420,
-          damping: 28,
-        });
+        // Handle pops FIRST — cause. Then the spectrum reveal expands —
+        // effect. Decoupling them by ~70ms gives the choreography a
+        // beat structure instead of a single simultaneous snap.
+        const reduced = reducedMotionRef.current;
+        if (reduced) {
+          handleScale.set(1.18);
+          revealR.set(Math.hypot(card.width, card.height) * 2.2);
+        } else {
+          const current = handleScale.get();
+          fmAnimate(handleScale, [current, 1.22, 1.18], {
+            duration: 0.26,
+            times: [0, 0.5, 1],
+            ease: [0.2, 0.8, 0.2, 1],
+          });
+          window.setTimeout(() => {
+            fmAnimate(revealR, Math.hypot(card.width, card.height) * 2.2, {
+              duration: 0.29,
+              ease: [0.32, 0.72, 0, 1],
+            });
+          }, 70);
+        }
       };
 
       holdTimer = window.setTimeout(() => {
@@ -696,11 +825,17 @@ export function ColorHoldPick() {
           tokensRef.current
         );
         setAppColor(sampled);
+        customPickRef.current = {
+          hu: cx / card.width,
+          t: cy / card.height,
+        };
 
         // Emit a fading brush ghost on fast drags. Throttled so we don't
-        // flood state during a single sweep.
+        // flood state during a single sweep. Skip entirely under reduced
+        // motion — the trail is decorative and motion-heavy.
         const tNow = performance.now();
         if (
+          !reducedMotionRef.current &&
           smoothSpeed.get() > TRAIL_SPEED_THRESHOLD &&
           tNow - lastTrailEmitRef.current > TRAIL_EMIT_INTERVAL_MS
         ) {
@@ -722,6 +857,8 @@ export function ColorHoldPick() {
         window.removeEventListener("pointercancel", onUp);
         activeGestureRef.current = { timer: null, onMove: null, onUp: null };
 
+        const reduced = reducedMotionRef.current;
+
         if (!entered) {
           // Tap below hold threshold → playful spin, no state change.
           // Settle scale back from press-squish.
@@ -730,52 +867,73 @@ export function ColorHoldPick() {
             stiffness: 520,
             damping: 30,
           });
-          fmAnimate(jiggleRotate, [0, -16, 12, -7, 3, 0], {
-            duration: 0.46,
-            times: [0, 0.18, 0.38, 0.58, 0.78, 1],
-            ease: [0.2, 0.8, 0.2, 1],
-          });
+          if (!reduced) {
+            fmAnimate(jiggleRotate, [0, -16, 12, -7, 3, 0], {
+              duration: 0.46,
+              times: [0, 0.18, 0.38, 0.58, 0.78, 1],
+              ease: [0.2, 0.8, 0.2, 1],
+            });
+          }
           return;
         }
 
         setPicking(false);
         if (!movedRef.current) {
+          // Backed out of picker without committing. Restore prior selection
+          // (which fires the preset's commit pulse for free via the
+          // selected:false→true effect in Swatch) and recoil the handle
+          // so the moment doesn't read as silent/lossy.
           setAppColor(prevStateRef.current.color);
           setSelected(prevStateRef.current.selected);
           fmAnimate(handleScale, 1, {
             type: "spring",
-            stiffness: 520,
-            damping: 30,
+            stiffness: 380,
+            damping: 26,
           });
         } else {
           // Commit bloom — radial light pulse on the phone surface, centered
           // on the handle's landing position. Reads as "surface received it."
           bloomCX.set(x.get() + SWATCH_R);
           bloomCY.set(y.get() + SWATCH_R);
-          fmAnimate(bloomOpacity, [0, 1, 0], {
-            duration: 0.5,
-            times: [0, 0.3, 1],
-            ease: [0.2, 0, 0, 1],
-          });
-          // Commit pulse — mirrors the swatch claim-beat so the handle's
-          // landing reads as part of the same selection idiom.
-          fmAnimate(handleScale, [1.18, 1.08, 1], {
-            duration: 0.42,
-            times: [0, 0.35, 1],
-            ease: [0.2, 0.8, 0.2, 1],
-          });
+          if (!reduced) {
+            fmAnimate(bloomOpacity, [0, 1, 0], {
+              duration: 0.5,
+              times: [0, 0.3, 1],
+              ease: [0.2, 0, 0, 1],
+            });
+          }
+          // Commit pulse — gentle settle from picker scale through a
+          // small overshoot. Matches the swatch idiom: subtle life on
+          // landing, no exaggerated rebound.
+          if (reduced) {
+            fmAnimate(handleScale, 1, {
+              type: "spring",
+              stiffness: 480,
+              damping: 30,
+            });
+          } else {
+            // No keyframe overshoot — smooth spring settle from picker
+            // scale straight back to 1.
+            fmAnimate(handleScale, 1, {
+              type: "spring",
+              stiffness: 320,
+              damping: 30,
+            });
+          }
         }
         fmAnimate(revealR, 0, { duration: 0.29, ease: [0.32, 0.72, 0, 1] });
         const { x: sx, y: sy } = slotPosRef.current;
+        // Tiny overshoot back into the slot — just enough life that the
+        // landing isn't dead, not a visible rebound.
         fmAnimate(x, sx - SWATCH_R, {
           type: "spring",
-          stiffness: 380,
-          damping: 32,
+          stiffness: 400,
+          damping: 30,
         });
         fmAnimate(y, sy - SWATCH_R, {
           type: "spring",
-          stiffness: 380,
-          damping: 32,
+          stiffness: 400,
+          damping: 30,
         });
       };
 
@@ -803,11 +961,23 @@ export function ColorHoldPick() {
   );
 
   // Toggle appearance — swap selected preset to its counterpart in the new
-  // mode so the surface doesn't suddenly become unreadable.
+  // mode so the surface doesn't suddenly become unreadable. For a custom
+  // pick, transpose at the same hue: the overlay flips between modes
+  // (light wash at top vs dark wash at bottom), so we flip t to preserve
+  // the perceptual position — a saturated pick stays saturated.
   const toggleAppearance = (next: Appearance) => {
     if (next === appearance) return;
     setAppearance(next);
-    if (selected !== "custom") {
+    if (selected === "custom") {
+      const pick = customPickRef.current;
+      if (pick) {
+        const flipped =
+          TOKENS[next].overlayAtBottom !== TOKENS[appearance].overlayAtBottom;
+        const newT = flipped ? 1 - pick.t : pick.t;
+        setAppColor(sampleSpectrum(pick.hu, newT, TOKENS[next]));
+        customPickRef.current = { hu: pick.hu, t: newT };
+      }
+    } else {
       const idx = PRESETS[appearance].findIndex((p) => p.id === selected);
       if (idx >= 0) {
         setAppColor(PRESETS[next][idx].color);
@@ -977,7 +1147,11 @@ export function ColorHoldPick() {
                       style={{
                         fontFamily: f.family,
                         fontSize: 17,
+                        lineHeight: 1,
                         color: tokens.text,
+                        // Per-font optical baseline correction — serif and
+                        // slab faces sit slightly higher in their em-box.
+                        transform: f.dy ? `translateY(${f.dy}px)` : undefined,
                         transition: "color 0.3s ease",
                       }}
                     >
