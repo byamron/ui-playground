@@ -750,3 +750,25 @@ export function DevDivider() {
     />
   );
 }
+
+// ---------------------------------------------------------------------------
+// DevSectionLabel — small uppercase label for grouping controls inside the panel
+// ---------------------------------------------------------------------------
+
+export function DevSectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <span
+      style={{
+        fontSize: 9,
+        fontWeight: 600,
+        textTransform: "uppercase",
+        letterSpacing: "0.10em",
+        color: COLOR.muted,
+        marginTop: 2,
+        marginBottom: -4,
+      }}
+    >
+      {children}
+    </span>
+  );
+}

@@ -1,4 +1,20 @@
+import { useSyncExternalStore } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+
+// Demos can opt to hide the floating Back button (e.g., for clean screen
+// recordings) via setBackButtonHidden(true). BackToGallery owns its own
+// visibility check so callers don't need to reach into the DOM.
+let _hidden = false;
+const _subs = new Set<() => void>();
+export function setBackButtonHidden(hidden: boolean) {
+  if (_hidden === hidden) return;
+  _hidden = hidden;
+  _subs.forEach((cb) => cb());
+}
+function subscribe(cb: () => void) {
+  _subs.add(cb);
+  return () => { _subs.delete(cb); };
+}
 
 // Floating "back" affordance rendered at the root of the app. Shows on
 // every route except the gallery itself. Top-left, fixed, neutral styling
@@ -7,7 +23,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 export function BackToGallery() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  if (pathname === "/") return null;
+  const hidden = useSyncExternalStore(subscribe, () => _hidden, () => false);
+  if (pathname === "/" || hidden) return null;
   return (
     <button
       type="button"

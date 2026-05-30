@@ -162,13 +162,17 @@ export function setupGlassHighlight(
   // External suppression of pill visibility (shatter effect).
   let pillSuppressed = false;
 
-  // Shake: small high-frequency translate jitter that builds over its
-  // duration, then snaps to nothing. Drives a per-frame random offset
-  // applied on top of the spring-driven translate.
+  // Cached strings for the two heaviest per-frame writes. Most idle hover
+  // frames produce identical values; skip the style write when unchanged.
+  let lastBackground = "";
+  let lastBoxShadow = "";
+
+  // Shake: small sin-wave translate wobble that builds over its duration,
+  // then snaps to nothing. Layered on top of the spring-driven translate.
   let shakeStartMs = 0;
   let shakeDurationMs = 0;
   let shakeMaxPx = 0;
-  const SHAKE_DEFAULT_MAX_PX = 1.6;
+  const SHAKE_DEFAULT_MAX_PX = 0.9;
 
   function engageCardLean(card: HTMLElement): void {
     leanIntensity = 0;
@@ -416,7 +420,11 @@ export function setupGlassHighlight(
     const cursorWhiteMul = isDark ? 1 : 0.35;
     const clInner = (clIntensity * cursorWhiteMul).toFixed(3);
     const clOuter = (clIntensity * 0.1 * cursorWhiteMul).toFixed(3);
-    pill.style.background = `radial-gradient(circle ${cursorRadius}px at ${hlPctX}% ${hlPctY}%, rgba(255,255,255,${clInner}), rgba(255,255,255,${clOuter}) 55%, transparent 100%), ${fillHsla}`;
+    const nextBackground = `radial-gradient(circle ${cursorRadius}px at ${hlPctX}% ${hlPctY}%, rgba(255,255,255,${clInner}), rgba(255,255,255,${clOuter}) 55%, transparent 100%), ${fillHsla}`;
+    if (nextBackground !== lastBackground) {
+      pill.style.background = nextBackground;
+      lastBackground = nextBackground;
+    }
 
     const specularMul = isDark ? 1 : 0.30;
     const specularAlpha = (edgeIntensity * specularMul).toFixed(3);
@@ -431,7 +439,11 @@ export function setupGlassHighlight(
       parts.push("inset 0 0 0 1px rgba(0,0,0,0.04)");
       parts.push(`0 6px 16px hsla(${hue}, 40%, 25%, 0.10)`);
     }
-    pill.style.boxShadow = parts.join(", ");
+    const nextBoxShadow = parts.join(", ");
+    if (nextBoxShadow !== lastBoxShadow) {
+      pill.style.boxShadow = nextBoxShadow;
+      lastBoxShadow = nextBoxShadow;
+    }
 
     if (leanedCard && mouseActive) {
       leanIntensity += (1 - leanIntensity) * STATIC.cardLeanRamp;
@@ -458,10 +470,12 @@ export function setupGlassHighlight(
     const tx = springs.x.value - (w * (sx - 1)) / 2 + leanX;
     const ty = springs.y.value - (h * (sy - 1)) / 2 + leanY;
 
-    // Shake: small random translate jitter on a bell-curve envelope
-    // (sin(πt)). Ramps up as the cracks begin, peaks midway through the
-    // crack-draw, tapers to 0 as the cracks settle — so the pill *only*
-    // shakes while it's actively cracking, never after.
+    // Shake: gentle sin-wave wobble on a bell-curve envelope (sin(πt)).
+    // The envelope ramps amplitude up as cracks begin, peaks midway, and
+    // tapers to 0 as they settle. X and Y carry sin waves at slightly
+    // different low frequencies (≈10Hz and ≈12Hz) with a phase offset, so
+    // the pill traces a slow tilted ellipse rather than reading as a sharp
+    // tremor.
     let shakeOffsetX = 0;
     let shakeOffsetY = 0;
     if (shakeDurationMs > 0) {
@@ -471,8 +485,9 @@ export function setupGlassHighlight(
         shakeDurationMs = 0;
       } else {
         const amp = Math.sin(t * Math.PI) * shakeMaxPx;
-        shakeOffsetX = (Math.random() - 0.5) * 2 * amp;
-        shakeOffsetY = (Math.random() - 0.5) * 2 * amp;
+        // ω = 2π·f/1000 for f in Hz when t is in ms.
+        shakeOffsetX = Math.sin(now * 0.0628) * amp;            // ~10 Hz
+        shakeOffsetY = Math.sin(now * 0.0754 + Math.PI / 3) * amp; // ~12 Hz, +60° phase
       }
     }
 

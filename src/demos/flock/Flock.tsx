@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from "react";
-import { DevPanel, DevSlider, DevButtonGroup, DevButton, DevDivider } from "../../components/DevPanel";
+import { DevPanel, DevSlider, DevButtonGroup, DevButton, DevDivider, DevSectionLabel } from "../../components/DevPanel";
+import { setBackButtonHidden } from "../../components/BackToGallery";
 import { bg, HUES } from "../../palette";
 import {
   setupGlassHighlight,
@@ -15,6 +16,7 @@ import {
  */
 
 const TWITTER_BLUE = "#1DA1F2";
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 // Canonical Twitter bird path on a 248×204 viewBox — drawn at any size as
 // an inline SVG so we can recolor and transform freely without managing
@@ -38,10 +40,10 @@ const EXIT_TARGET_Y_FRAC = 0.12;   // fraction of viewport height from top
 const DEFAULTS = {
   burstMin: 4,         // burst count is randomized in [burstMin, burstMax]
   burstMax: 10,
-  flapHz: 6.0,
+  flapHz: 4.5,
   spawnStaggerMs: 55,
-  flightSpeed: 200,    // px/s baseline
-  bobAmplitude: 5,     // px perpendicular wobble
+  flightSpeed: 180,    // px/s baseline
+  bobAmplitude: 4,     // px perpendicular wobble
   climbAccel: 15,      // upward acceleration over time, px/s²
   birdSize: 24,        // px
   flapJitter: true,    // per-bird flap-rate variation desyncs the flock
@@ -83,8 +85,14 @@ const PILL_SPIKE_AMOUNT = 0.15;
 const LAST_LOOK_START = 2.0;
 const LAST_LOOK_FREEZE = 0.5;
 const LAST_LOOK_HEAD_TURN_DEG = 14;
-// Subtle drop-shadow for materiality.
-const BIRD_DROP_SHADOW = "drop-shadow(0 1px 1.5px rgba(0,0,0,0.10))";
+// Subtle drop-shadow rendered as a second SVG path offset behind the bird,
+// not as a CSS filter — drop-shadow on a transforming layer forces a full
+// re-rasterization every frame on Safari/iOS, which made the flap choppy.
+// The viewBox offset is in 0..248 units; 10 units ≈ 1px at the default
+// bird size and scales naturally with the bird.
+const BIRD_SHADOW_OFFSET_Y = 10;
+const BIRD_SHADOW_FILL = "rgba(0, 0, 0, 0.13)";
+const BIRD_SHADOW_CLASS = "flock-bird-shadow";
 
 // Shatter physics constants. Tuned so glass shards feel weighty but fast —
 // they fly clear of the link area in under 1s, then fade as they fall.
@@ -110,9 +118,10 @@ const FRACTURE_CRACK_DRAW_MS = 240;
 // glass pill (which springs from the previously-hovered link) time to
 // settle on the X before any cracks appear.
 const FRACTURE_START_DELAY_MS = 200;
-// Opacity multiplier applied to the preview crack paths so the cracks
-// blend in with the pill rather than reading as opaque marks on top of it.
-const FRACTURE_CRACK_OPACITY = 0.55;
+// Opacity multiplier applied to the preview crack paths. Tuned so the
+// cracks are visibly readable on a first-time hover (so the burst feels
+// caused, not random) while still blending into the pill's warm tint.
+const FRACTURE_CRACK_OPACITY = 0.70;
 
 function randInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1));
@@ -157,11 +166,11 @@ interface FlockConfig {
   bobAmplitude: number;
   climbAccel: number;
   birdSize: number;
+  staggerMs: number;
   flapJitter: boolean;
   headBob: boolean;
   magicEmerge: boolean;
   lastLook: boolean;
-  dropShadow: boolean;
 }
 
 export type OriginMode = "corner" | "cursor" | "perched";
@@ -188,11 +197,53 @@ export interface SpawnOrigin {
 interface BirdSwarmAPI {
   spawn: (origin: SpawnOrigin, count: number, opts?: { lastLook?: boolean }) => void;
   cleanup: () => void;
-  setStagger: (ms: number) => void;
 }
 
 function rand(min: number, max: number) {
   return min + Math.random() * (max - min);
+}
+
+// Thin wrapper that gives boolean toggles in the dev panel the same
+// two-pill visual as the rest of the controls (instead of switching to
+// DevToggle, which renders a switch and would change the panel's look).
+function OnOffToggle({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <DevButtonGroup
+      label={label}
+      value={value ? "on" : "off"}
+      onChange={(v) => onChange(v === "on")}
+      options={[
+        { label: "On", value: "on" },
+        { label: "Off", value: "off" },
+      ]}
+    />
+  );
+}
+
+// Shared "where does the burst emerge from" dispatch — used by the bird
+// swarm (for corner/cursor; perched adds per-bird random on top) and by
+// the fracture trigger (for the crack epicenter on all modes).
+interface RectLike { left: number; top: number; right: number; bottom: number; width: number; height: number; }
+function resolveEpicenter(
+  mode: OriginMode,
+  rect: RectLike,
+  cursor?: { x: number; y: number } | null,
+): { x: number; y: number } {
+  if (mode === "cursor" && cursor) {
+    return { x: rect.right, y: cursor.y };
+  }
+  if (mode === "perched") {
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  }
+  return { x: rect.right - rect.width * 0.15, y: rect.top + rect.height * 0.25 };
 }
 
 function setupBirdSwarm(
@@ -202,6 +253,26 @@ function setupBirdSwarm(
   const birds: Bird[] = [];
   let rafId: number | null = null;
   let lastTime = 0;
+
+  // Build the bird SVG once, then cloneNode per bird at spawn time. The
+  // shadow is a second path *behind* the bird, offset down — cheap GPU
+  // alpha composite instead of a CSS filter rasterization per frame.
+  const birdSvgTemplate = document.createElementNS(SVG_NS, "svg");
+  birdSvgTemplate.setAttribute("viewBox", "0 0 248 204");
+  birdSvgTemplate.setAttribute("width", "100%");
+  birdSvgTemplate.setAttribute("height", "100%");
+  birdSvgTemplate.style.display = "block";
+  birdSvgTemplate.style.overflow = "visible";
+  const shadowPathTemplate = document.createElementNS(SVG_NS, "path");
+  shadowPathTemplate.setAttribute("d", BIRD_PATH);
+  shadowPathTemplate.setAttribute("fill", BIRD_SHADOW_FILL);
+  shadowPathTemplate.setAttribute("transform", `translate(0 ${BIRD_SHADOW_OFFSET_Y})`);
+  shadowPathTemplate.setAttribute("class", BIRD_SHADOW_CLASS);
+  birdSvgTemplate.appendChild(shadowPathTemplate);
+  const birdPathTemplate = document.createElementNS(SVG_NS, "path");
+  birdPathTemplate.setAttribute("d", BIRD_PATH);
+  birdPathTemplate.setAttribute("fill", TWITTER_BLUE);
+  birdSvgTemplate.appendChild(birdPathTemplate);
 
   function createBirdEl(size: number): HTMLDivElement {
     const h = size * (204 / 248);
@@ -222,38 +293,25 @@ function setupBirdSwarm(
       transformOrigin: "50% 50%",
       opacity: "0",
     });
-    wrap.innerHTML = `<svg viewBox="0 0 248 204" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" style="display:block;overflow:visible"><path d="${BIRD_PATH}" fill="${TWITTER_BLUE}"/></svg>`;
-    layer.appendChild(wrap);
+    wrap.appendChild(birdSvgTemplate.cloneNode(true));
+    // Caller is responsible for inserting into the DOM (we batch via a
+    // DocumentFragment in spawn so a 10-bird burst hits the layer once).
     return wrap;
   }
 
-  // Resolve a per-bird spawn point given the origin descriptor. Each mode
-  // has its own physical metaphor:
-  //   corner   — single point at the top-right of the X; clean takeoff
-  //   cursor   — single point at the cursor (falls back to corner)
-  //   perched  — each bird gets its own random point inside the link rect,
-  //              like a row of birds that were sitting on the letter
+  // Resolve a per-bird spawn point. Corner/cursor modes return the same
+  // point for every bird; perched mode scatters across the link rect.
   function resolveOrigin(origin: SpawnOrigin): { x: number; y: number } {
-    const { mode, rect } = origin;
-    if (mode === "cursor") {
-      // X is locked to the link's right edge so birds never spawn left
-      // of the cursor (which breaks the "emerging from the link" read).
-      // Y tracks the cursor so the flock launches from wherever you're
-      // pointing along the X.
-      const x = rect.right;
-      if (origin.cursorY != null) {
-        return { x, y: origin.cursorY };
-      }
-      return { x, y: rect.top + rect.height / 2 };
-    }
-    if (mode === "perched") {
+    if (origin.mode === "perched") {
       return {
-        x: rect.left + rand(0.1, 0.9) * rect.width,
-        y: rect.top + rand(0.15, 0.85) * rect.height,
+        x: origin.rect.left + rand(0.1, 0.9) * origin.rect.width,
+        y: origin.rect.top + rand(0.15, 0.85) * origin.rect.height,
       };
     }
-    // corner (default)
-    return { x: rect.right - rect.width * 0.15, y: rect.top + rect.height * 0.25 };
+    const cursor = origin.cursorY != null && origin.cursorX != null
+      ? { x: origin.cursorX, y: origin.cursorY }
+      : null;
+    return resolveEpicenter(origin.mode, origin.rect as RectLike, cursor);
   }
 
   function spawn(origin: SpawnOrigin, count: number, opts?: { lastLook?: boolean }) {
@@ -276,13 +334,18 @@ function setupBirdSwarm(
     const useFormation = !isPerchedMode;
     // Floor stagger in perched mode so the sequential takeoff reads.
     const effectiveStaggerMs = isPerchedMode
-      ? Math.max(staggerMs, PERCHED_MIN_STAGGER_MS)
-      : staggerMs;
+      ? Math.max(cfg.staggerMs, PERCHED_MIN_STAGGER_MS)
+      : cfg.staggerMs;
+
+    // Batch all new wraps into a fragment so a 10-bird burst hits the
+    // layer in a single insertion instead of 10 separate appendChilds.
+    const fragment = document.createDocumentFragment();
 
     for (let i = 0; i < count; i++) {
       const size = cfg.birdSize * rand(0.85, 1.05);
       const height = size * (204 / 248);
       const el = createBirdEl(size);
+      fragment.appendChild(el);
 
       const angle = baseAngle + rand(-0.18, 0.18);
       const speed = cfg.flightSpeed * rand(0.92, 1.10);
@@ -318,7 +381,7 @@ function setupBirdSwarm(
         bobFreq: rand(1.2, 1.9),
         bobPhase: rand(0, Math.PI * 2),
         flapPhase: rand(0, Math.PI * 2),
-        flapAmp: rand(0.20, 0.30),
+        flapAmp: rand(0.12, 0.18),
         flapHzMul: rand(FLAP_JITTER_MIN, FLAP_JITTER_MAX),
         formOffsetX,
         formOffsetY,
@@ -337,15 +400,13 @@ function setupBirdSwarm(
       birds.push(bird);
     }
 
+    layer.appendChild(fragment);
+
     if (rafId === null) {
       lastTime = 0;
       rafId = requestAnimationFrame(loop);
     }
   }
-
-  // Stagger only matters at spawn, so it lives outside the per-frame config.
-  let staggerMs = DEFAULTS.spawnStaggerMs;
-  function setStagger(v: number) { staggerMs = v; }
 
   function loop(now: number) {
     rafId = null;
@@ -355,6 +416,7 @@ function setupBirdSwarm(
 
     const baseFlapTwoPi = cfg.flapHz * Math.PI * 2;
     const vpW = window.innerWidth;
+    let anyDied = false;
 
     for (const b of birds) {
       if (!b.alive) continue;
@@ -521,7 +583,8 @@ function setupBirdSwarm(
         + lookHeadDeg;
 
       b.el.style.opacity = opacity.toFixed(2);
-      b.el.style.filter = cfg.dropShadow ? BIRD_DROP_SHADOW : "none";
+      // Shadow visibility is driven by a single `data-shadow` attribute
+      // on the layer (see useEffect in Flock); no per-frame filter write.
       b.el.style.transform =
         `translate(${renderX.toFixed(1)}px, ${(renderY + bottomAnchorY).toFixed(1)}px) ` +
         `rotate(${rotDeg.toFixed(1)}deg) ` +
@@ -532,12 +595,15 @@ function setupBirdSwarm(
       if (renderY < -M || renderX > vpW + M) {
         b.alive = false;
         b.el.remove();
+        anyDied = true;
       }
     }
 
-    // Compact the array occasionally
-    for (let i = birds.length - 1; i >= 0; i--) {
-      if (!birds[i].alive) birds.splice(i, 1);
+    // Compact the array only when something actually died this frame.
+    if (anyDied) {
+      for (let i = birds.length - 1; i >= 0; i--) {
+        if (!birds[i].alive) birds.splice(i, 1);
+      }
     }
 
     if (birds.length > 0) {
@@ -547,7 +613,6 @@ function setupBirdSwarm(
 
   return {
     spawn,
-    setStagger,
     cleanup: () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
       rafId = null;
@@ -572,6 +637,8 @@ interface Shard {
   angVel: number;
   age: number;
   alive: boolean;
+  // Cached opacity string — skip the setAttribute write when unchanged.
+  appliedOpacity: string;
 }
 
 interface ShatterColors {
@@ -594,8 +661,6 @@ interface ShatterAPI {
   ) => () => void; // returns a cancel function (valid until break)
   cleanup: () => void;
 }
-
-const SVG_NS = "http://www.w3.org/2000/svg";
 
 // Build a jagged polyline from start to end with N intermediate points
 // jittered perpendicular to the spoke axis. Jitter tapers toward the
@@ -718,6 +783,9 @@ function setupShatter(svgLayer: SVGSVGElement): ShatterAPI {
     },
   ) {
     const { perim, exLocal, eyLocal, spokes } = geometry;
+    // Batch shard SVG nodes into a fragment — single append to the layer
+    // after the spawn loop instead of one per shard.
+    const fragment = document.createDocumentFragment();
     for (let i = 0; i < perim.length; i++) {
       const j = (i + 1) % perim.length;
       const spokeA = spokes[i];          // [epicenter, jitter..., perim[i]]
@@ -772,7 +840,7 @@ function setupShatter(svgLayer: SVGSVGElement): ShatterAPI {
         g.appendChild(highlightLine);
       }
 
-      svgLayer.appendChild(g);
+      fragment.appendChild(g);
 
       shards.push({
         el: g,
@@ -784,8 +852,10 @@ function setupShatter(svgLayer: SVGSVGElement): ShatterAPI {
         angVel: rand(-SHATTER_ANGULAR_VEL_MAX, SHATTER_ANGULAR_VEL_MAX),
         age: 0,
         alive: true,
+        appliedOpacity: "",
       });
     }
+    svgLayer.appendChild(fragment);
   }
 
   function fracture(
@@ -887,6 +957,7 @@ function setupShatter(svgLayer: SVGSVGElement): ShatterAPI {
     lastTime = now;
 
     let aliveCount = 0;
+    let anyDied = false;
     for (const s of shards) {
       if (!s.alive) continue;
       s.age += dt;
@@ -903,7 +974,14 @@ function setupShatter(svgLayer: SVGSVGElement): ShatterAPI {
                       (SHATTER_DURATION_S - SHATTER_FADE_START_S);
         opacity = Math.max(0, 1 - fadeT);
       }
-      s.el.setAttribute("opacity", opacity.toFixed(2));
+      // Opacity sits at "1.00" for the first ~450ms of flight; skipping
+      // the setAttribute during that window cuts ~5 attribute writes per
+      // frame from the shatter window.
+      const opacityStr = opacity.toFixed(2);
+      if (s.appliedOpacity !== opacityStr) {
+        s.el.setAttribute("opacity", opacityStr);
+        s.appliedOpacity = opacityStr;
+      }
       s.el.setAttribute(
         "transform",
         `translate(${s.worldX.toFixed(1)} ${s.worldY.toFixed(1)}) rotate(${s.rot.toFixed(1)})`,
@@ -912,8 +990,15 @@ function setupShatter(svgLayer: SVGSVGElement): ShatterAPI {
       if (s.age > SHATTER_DURATION_S) {
         s.alive = false;
         s.el.remove();
+        anyDied = true;
       } else {
         aliveCount++;
+      }
+    }
+
+    if (anyDied) {
+      for (let i = shards.length - 1; i >= 0; i--) {
+        if (!shards[i].alive) shards.splice(i, 1);
       }
     }
 
@@ -984,6 +1069,16 @@ export function Flock() {
   const [dropShadowOn, setDropShadowOn] = useState(DEFAULTS.dropShadow);
   const [fractureOn, setFractureOn] = useState(DEFAULTS.fracture);
   const [stragglersOn, setStragglersOn] = useState(DEFAULTS.stragglers);
+  // View toggles (not tied to a Flock behavior — these affect chrome only).
+  const [backButtonOn, setBackButtonOn] = useState(true);
+
+  // Tell the Back-button component to hide itself; it has its own
+  // visibility check (pathname + this hidden flag) and re-renders on
+  // change. Restore on unmount so leaving the demo brings it back.
+  useEffect(() => {
+    setBackButtonHidden(!backButtonOn);
+    return () => setBackButtonHidden(false);
+  }, [backButtonOn]);
 
   // Shatter layer + API — physics-based glass break-apart at burst time.
   const shatterLayerRef = useRef<SVGSVGElement>(null);
@@ -1028,30 +1123,33 @@ export function Flock() {
     glassConfigRef.current.mode = mode;
   }, [mode]);
 
+  // Mutate in-place each render — matches glassConfigRef so we don't
+  // re-create the object the swarm loop is reading every frame.
   const flockConfigRef = useRef<FlockConfig>({
-    flapHz,
-    flightSpeed,
-    bobAmplitude,
-    climbAccel,
-    birdSize,
-    flapJitter: flapJitterOn,
-    headBob: headBobOn,
-    magicEmerge: magicEmergeOn,
-    lastLook: lastLookOn,
-    dropShadow: dropShadowOn,
+    flapHz: DEFAULTS.flapHz,
+    flightSpeed: DEFAULTS.flightSpeed,
+    bobAmplitude: DEFAULTS.bobAmplitude,
+    climbAccel: DEFAULTS.climbAccel,
+    birdSize: DEFAULTS.birdSize,
+    staggerMs: DEFAULTS.spawnStaggerMs,
+    flapJitter: DEFAULTS.flapJitter,
+    headBob: DEFAULTS.headBob,
+    magicEmerge: DEFAULTS.magicEmerge,
+    lastLook: DEFAULTS.lastLook,
   });
-  flockConfigRef.current = {
-    flapHz,
-    flightSpeed,
-    bobAmplitude,
-    climbAccel,
-    birdSize,
-    flapJitter: flapJitterOn,
-    headBob: headBobOn,
-    magicEmerge: magicEmergeOn,
-    lastLook: lastLookOn,
-    dropShadow: dropShadowOn,
-  };
+  flockConfigRef.current.flapHz = flapHz;
+  flockConfigRef.current.flightSpeed = flightSpeed;
+  flockConfigRef.current.bobAmplitude = bobAmplitude;
+  flockConfigRef.current.climbAccel = climbAccel;
+  flockConfigRef.current.birdSize = birdSize;
+  flockConfigRef.current.staggerMs = staggerMs;
+  flockConfigRef.current.flapJitter = flapJitterOn;
+  flockConfigRef.current.headBob = headBobOn;
+  flockConfigRef.current.magicEmerge = magicEmergeOn;
+  flockConfigRef.current.lastLook = lastLookOn;
+  // dropShadowOn isn't read by the swarm loop — it drives the layer's
+  // data-shadow attribute in the JSX, which controls visibility of the
+  // baked-in shadow path via CSS. Zero per-frame work for the toggle.
 
   // Glass-pull setup
   const glassApiRef = useRef<ReturnType<typeof setupGlassHighlight> | null>(null);
@@ -1079,17 +1177,11 @@ export function Flock() {
     if (!layer) return;
     const swarm = setupBirdSwarm(layer, flockConfigRef);
     swarmRef.current = swarm;
-    swarm.setStagger(staggerMs);
     return () => {
       swarmRef.current = null;
       swarm.cleanup();
     };
   }, []);
-
-  // Push stagger updates into the swarm without re-creating it
-  useEffect(() => {
-    swarmRef.current?.setStagger(staggerMs);
-  }, [staggerMs]);
 
   // Spawn a wave of N birds from the X link, using the most recent cursor
   // position (for cursor mode) or the link rect otherwise. Shared between
@@ -1154,15 +1246,7 @@ export function Flock() {
         const xRect = liveXEl.getBoundingClientRect();
         if (xRect.width < 4) return;
 
-        const cursor = cursorRef.current;
-        let epicenter: { x: number; y: number };
-        if (originMode === "cursor" && cursor) {
-          epicenter = { x: xRect.right, y: cursor.y };
-        } else if (originMode === "perched") {
-          epicenter = { x: xRect.left + xRect.width / 2, y: xRect.top + xRect.height / 2 };
-        } else {
-          epicenter = { x: xRect.right - xRect.width * 0.15, y: xRect.top + xRect.height * 0.25 };
-        }
+        const epicenter = resolveEpicenter(originMode, xRect, cursorRef.current);
         const isLight = mode === "light";
         const colors: ShatterColors = isLight
           ? {
@@ -1221,16 +1305,14 @@ export function Flock() {
     cursorRef.current = { x: e.clientX, y: e.clientY };
   }, []);
 
-  const onXMouseLeave = useCallback(() => {
+  // Single "user is no longer hovering X" handler used by mouseLeave,
+  // touchEnd/Cancel, and blur. Cancels stragglers + in-flight fracture,
+  // restores pill suppression so the next hover gets a fresh pill.
+  const endHover = useCallback(() => {
     isHoveringRef.current = false;
     clearStragglerTimers();
-    // Cancel any in-flight fracture preview — cracks fade and the pill
-    // stays intact, so a quick brush past the link doesn't trigger anything.
     pendingFractureCancelRef.current?.();
     pendingFractureCancelRef.current = null;
-    // Restore pill suppression: the pill is currently invisible because the
-    // user broke it. Clearing suppression lets the next hover bring it back
-    // fresh. (The glass system handles the actual opacity transitions.)
     glassApiRef.current?.setPillVisible(true);
   }, [clearStragglerTimers]);
 
@@ -1242,14 +1324,6 @@ export function Flock() {
     triggerFlock();
   }, [triggerFlock]);
 
-  const onXTouchEnd = useCallback(() => {
-    isHoveringRef.current = false;
-    clearStragglerTimers();
-    pendingFractureCancelRef.current?.();
-    pendingFractureCancelRef.current = null;
-    glassApiRef.current?.setPillVisible(true);
-  }, [clearStragglerTimers]);
-
   // Keyboard parity — tab-to-X-and-focus fires the flock with a synthetic
   // cursor position at the link's right-edge midpoint.
   const onXFocus = useCallback((e: React.FocusEvent<HTMLAnchorElement>) => {
@@ -1259,14 +1333,6 @@ export function Flock() {
     cursorRef.current = { x: r.right, y: r.top + r.height / 2 };
     triggerFlock();
   }, [triggerFlock]);
-
-  const onXBlur = useCallback(() => {
-    isHoveringRef.current = false;
-    clearStragglerTimers();
-    pendingFractureCancelRef.current?.();
-    pendingFractureCancelRef.current = null;
-    glassApiRef.current?.setPillVisible(true);
-  }, [clearStragglerTimers]);
 
   const palette = TEXT_COLOR[mode];
 
@@ -1286,6 +1352,9 @@ export function Flock() {
               { label: "Dark", value: "dark" },
             ]}
           />
+          <OnOffToggle label="Back button" value={backButtonOn} onChange={setBackButtonOn} />
+          <DevDivider />
+          <DevSectionLabel>Burst</DevSectionLabel>
           <DevButtonGroup
             label="Origin"
             value={originMode}
@@ -1298,86 +1367,28 @@ export function Flock() {
           />
           <DevSlider label="Burst min" value={burstMin} onChange={setBurstMin} min={2} max={14} step={1} />
           <DevSlider label="Burst max" value={burstMax} onChange={setBurstMax} min={2} max={14} step={1} />
-          <DevSlider label="Flap rate" value={flapHz} onChange={setFlapHz} min={3} max={10} step={0.5} format={(v) => `${v.toFixed(1)}Hz`} />
-          <DevButtonGroup
-            label="Flap jitter"
-            value={flapJitterOn ? "on" : "off"}
-            onChange={(v) => setFlapJitterOn(v === "on")}
-            options={[
-              { label: "On", value: "on" },
-              { label: "Off", value: "off" },
-            ]}
-          />
-          <DevButtonGroup
-            label="Head bob"
-            value={headBobOn ? "on" : "off"}
-            onChange={(v) => setHeadBobOn(v === "on")}
-            options={[
-              { label: "On", value: "on" },
-              { label: "Off", value: "off" },
-            ]}
-          />
           <DevSlider label="Spawn stagger" value={staggerMs} onChange={setStaggerMs} min={20} max={260} step={5} format={(v) => `${Math.round(v)}ms`} />
+          <DevDivider />
+          <DevSectionLabel>Flight</DevSectionLabel>
           <DevSlider label="Flight speed" value={flightSpeed} onChange={setFlightSpeed} min={140} max={340} step={10} />
           <DevSlider label="Climb" value={climbAccel} onChange={setClimbAccel} min={0} max={180} step={5} />
           <DevSlider label="Bob amount" value={bobAmplitude} onChange={setBobAmplitude} min={0} max={14} step={1} />
           <DevSlider label="Bird size" value={birdSize} onChange={setBirdSize} min={14} max={36} step={1} />
           <DevDivider />
-          <DevButtonGroup
-            label="Magic emerge"
-            value={magicEmergeOn ? "on" : "off"}
-            onChange={(v) => setMagicEmergeOn(v === "on")}
-            options={[
-              { label: "On", value: "on" },
-              { label: "Off", value: "off" },
-            ]}
-          />
-          <DevButtonGroup
-            label="Pill spike"
-            value={pillSpikeOn ? "on" : "off"}
-            onChange={(v) => setPillSpikeOn(v === "on")}
-            options={[
-              { label: "On", value: "on" },
-              { label: "Off", value: "off" },
-            ]}
-          />
-          <DevButtonGroup
-            label="Fracture"
-            value={fractureOn ? "on" : "off"}
-            onChange={(v) => setFractureOn(v === "on")}
-            options={[
-              { label: "On", value: "on" },
-              { label: "Off", value: "off" },
-            ]}
-          />
-          <DevButtonGroup
-            label="Last look"
-            value={lastLookOn ? "on" : "off"}
-            onChange={(v) => setLastLookOn(v === "on")}
-            options={[
-              { label: "On", value: "on" },
-              { label: "Off", value: "off" },
-            ]}
-          />
-          <DevButtonGroup
-            label="Drop shadow"
-            value={dropShadowOn ? "on" : "off"}
-            onChange={(v) => setDropShadowOn(v === "on")}
-            options={[
-              { label: "On", value: "on" },
-              { label: "Off", value: "off" },
-            ]}
-          />
+          <DevSectionLabel>Wings</DevSectionLabel>
+          <DevSlider label="Flap rate" value={flapHz} onChange={setFlapHz} min={3} max={10} step={0.5} format={(v) => `${v.toFixed(1)}Hz`} />
+          <OnOffToggle label="Flap jitter" value={flapJitterOn} onChange={setFlapJitterOn} />
+          <OnOffToggle label="Head bob" value={headBobOn} onChange={setHeadBobOn} />
           <DevDivider />
-          <DevButtonGroup
-            label="Stragglers"
-            value={stragglersOn ? "on" : "off"}
-            onChange={(v) => setStragglersOn(v === "on")}
-            options={[
-              { label: "On", value: "on" },
-              { label: "Off", value: "off" },
-            ]}
-          />
+          <DevSectionLabel>Effects</DevSectionLabel>
+          <OnOffToggle label="Magic emerge" value={magicEmergeOn} onChange={setMagicEmergeOn} />
+          <OnOffToggle label="Pill spike" value={pillSpikeOn} onChange={setPillSpikeOn} />
+          <OnOffToggle label="Fracture" value={fractureOn} onChange={setFractureOn} />
+          <OnOffToggle label="Last look" value={lastLookOn} onChange={setLastLookOn} />
+          <OnOffToggle label="Drop shadow" value={dropShadowOn} onChange={setDropShadowOn} />
+          <DevDivider />
+          <DevSectionLabel>Stragglers</DevSectionLabel>
+          <OnOffToggle label="Stragglers" value={stragglersOn} onChange={setStragglersOn} />
           <DevSlider label="Wave 1 (1–3)" value={straggler1Ms} onChange={setStraggler1Ms} min={800} max={3500} step={50} format={(v) => `${Math.round(v)}ms`} />
           <DevSlider label="Wave 2 (1)" value={straggler2Ms} onChange={setStraggler2Ms} min={3000} max={7000} step={50} format={(v) => `${Math.round(v)}ms`} />
           <DevDivider />
@@ -1403,6 +1414,7 @@ export function Flock() {
               setStragglersOn(DEFAULTS.stragglers);
               setStraggler1Ms(DEFAULTS.straggler1Ms);
               setStraggler2Ms(DEFAULTS.straggler2Ms);
+              setBackButtonOn(true);
             }}
           />
         </>
@@ -1448,6 +1460,9 @@ export function Flock() {
           inset: 0;
           pointer-events: none;
           z-index: 50;
+        }
+        .flock-bird-layer:not([data-shadow="on"]) .flock-bird-shadow {
+          display: none;
         }
         .flock-shatter-layer {
           position: fixed;
@@ -1495,18 +1510,22 @@ export function Flock() {
             data-link-card
             onMouseEnter={onXMouseEnter}
             onMouseMove={onXMouseMove}
-            onMouseLeave={onXMouseLeave}
+            onMouseLeave={endHover}
             onTouchStart={onXTouchStart}
-            onTouchEnd={onXTouchEnd}
-            onTouchCancel={onXTouchEnd}
+            onTouchEnd={endHover}
+            onTouchCancel={endHover}
             onFocus={onXFocus}
-            onBlur={onXBlur}
+            onBlur={endHover}
           >
             X
           </a>
           .
         </div>
-        <div ref={birdLayerRef} className="flock-bird-layer" />
+        <div
+          ref={birdLayerRef}
+          className="flock-bird-layer"
+          data-shadow={dropShadowOn ? "on" : "off"}
+        />
         <svg ref={shatterLayerRef} className="flock-shatter-layer" aria-hidden="true" />
       </div>
     </DevPanel>
