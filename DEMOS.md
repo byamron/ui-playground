@@ -38,25 +38,26 @@ Demos that have gone out on at least one channel. No demos are *Live* in the Arc
 | Slide to Unlock | `/slide-unlock` | Craft | — | Posted | URL only |
 | Theme Sidebar | `/theme-sidebar` | Craft | @Dia | Posted | — |
 | Page Transition | `/page-transition` | Craft | — | Posted | — |
+| GitHub Sparkline | `/github-sparkline` | Craft | — | Posted | — |
+| Color Hold Pick | `/color-hold-pick` | Craft | — | Posted | — |
+| Flock | `/flock` | Witty | — | Posted | — |
 
 ## Release roadmap
 
 | # | Demo | Route | Type | Tag | Status |
 | --- | --- | --- | --- | --- | --- |
-| 1 | GitHub Sparkline | `/github-sparkline` | Craft | — | Ready |
-| 2 | Color Hold Pick | `/color-hold-pick` | Craft | — | Ready |
-| 3 | Figma High-Five | `/figma-highfive` | Witty | @Soren, @Figma | Ready |
-| 4 | Git Toggle | `/git-toggle` | Witty | @GitHub | Ready |
-| 5 | Glass Pull | `/glass-pull` | Craft | @Gavin Nelson | Ready |
-| 6 | Strava → Flights | `/strava-flights` | Witty | @Soren, @Strava | In progress |
-| 7 | Cursor Morph | `/cursor-morph` | Craft | — | In progress |
-| 8 | AirPods Contact NC | `/airpods-nc` | Witty | @Soren, @Apple | In progress |
-| 9 | Fisheye Text | `/fisheye-text` | Craft | — | In progress |
-| 10 | Spotify DJ Call-In | `/spotify-dj` | Witty | @Soren, @Spotify | In progress |
-| 11 | Spotify Wrapped for Ads | `/spotify-wrapped-ads` | Witty | @Soren, @Spotify | In progress |
+| 1 | Figma High-Five | `/figma-highfive` | Witty | @Soren, @Figma | Ready |
+| 2 | Git Toggle | `/git-toggle` | Witty | @GitHub | Ready |
+| 3 | Glass Pull | `/glass-pull` | Craft | @Gavin Nelson | Ready |
+| 4 | Strava → Flights | `/strava-flights` | Witty | @Soren, @Strava | In progress |
+| 5 | Cursor Morph | `/cursor-morph` | Craft | — | In progress |
+| 6 | AirPods Contact NC | `/airpods-nc` | Witty | @Soren, @Apple | In progress |
+| 7 | Fisheye Text | `/fisheye-text` | Craft | — | In progress |
+| 8 | Spotify DJ Call-In | `/spotify-dj` | Witty | @Soren, @Spotify | In progress |
+| 9 | Spotify Wrapped for Ads | `/spotify-wrapped-ads` | Witty | @Soren, @Spotify | In progress |
 | flex | Companion Zoo | `/companion-zoo` | Witty | — | Deferred |
 
-Ordering principles: open with two untagged craft pieces (GitHub Sparkline, Color Hold Pick) to keep profile depth, break to @Soren/@Figma at #3, then close out the Ready batch with the two strongest tagged pieces (Git Toggle @GitHub, Glass Pull @Gavin Nelson). Spotify Wrapped is held for the finale.
+Ordering principles: lead the next Ready batch with @Soren/@Figma to break the recent craft streak, then close out with the two strongest tagged pieces (Git Toggle @GitHub, Glass Pull @Gavin Nelson). Spotify Wrapped is held for the finale.
 
 ## Internal
 
