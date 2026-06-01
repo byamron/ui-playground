@@ -40,7 +40,7 @@ Demos that have gone out on at least one channel. No demos are *Live* in the Arc
 | Page Transition | `/page-transition` | Craft | — | Posted | — |
 | GitHub Sparkline | `/github-sparkline` | Craft | — | Posted | — |
 | Color Hold Pick | `/color-hold-pick` | Craft | — | Posted | — |
-| Flock | `/flock` | Witty | @Twitter | Posted | — |
+| Flock | `/flock` | Witty | — | Posted | — |
 
 ## Release roadmap
 
