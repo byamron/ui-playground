@@ -63,6 +63,9 @@ interface Persona {
   // Card 3: top ad genre
   topGenre: string; // big stat
   topGenreSub: string;
+  /** 4 brand names that "soundtracked the year" — rendered as logo
+   *  placeholder chips alongside (or in place of) the sub sentence. */
+  topGenreBrands: string[];
   topGenreDetail: string;
   // Card 3: top advertiser
   topBrand: string;
@@ -105,6 +108,7 @@ const PERSONAS: Persona[] = [
     topGenre: "Insurance",
     topGenreSub:
       "Geico, Progressive, Liberty Mutual, and State Farm soundtracked your year.",
+    topGenreBrands: ["Geico", "Progressive", "Liberty Mutual", "State Farm"],
     topGenreDetail: "You went deep on this one.",
     topBrand: "Geico",
     topBrandSpots: "1,247",
@@ -151,6 +155,7 @@ const PERSONAS: Persona[] = [
     topGenre: "Mental Health App",
     topGenreSub:
       "BetterHelp, Talkspace, Headspace, and Calm soundtracked your year.",
+    topGenreBrands: ["BetterHelp", "Talkspace", "Headspace", "Calm"],
     topGenreDetail: "Their sound was your sound.",
     topBrand: "BetterHelp",
     topBrandSpots: "612",
@@ -196,6 +201,7 @@ const PERSONAS: Persona[] = [
     topGenre: "AI Productivity",
     topGenreSub:
       "Microsoft Copilot, Notion AI, Granola, and Gemini soundtracked your year.",
+    topGenreBrands: ["Microsoft Copilot", "Notion AI", "Granola", "Gemini"],
     topGenreDetail: "Their sound was your sound.",
     topBrand: "Microsoft Copilot",
     topBrandSpots: "503",
@@ -661,14 +667,18 @@ function PixelRamp({ primary, secondary, bg }: { primary: string; secondary: str
 }
 
 function DollarSign({ primary, secondary, bg }: { primary: string; secondary: string; bg: string }) {
-  // Big chunky "$" symbol filling the lower half of the card — Wrapped's
-  // abstract-shape language applied to revenue. Cast shadow offset bottom-
-  // right matches the pyramid / X depth treatment.
+  // Big chunky "$" symbol anchored to the lower portion of the card so the
+  // headline + supporting copy in the upper half sit on clean bg. Cast shadow
+  // offset bottom-right matches the pyramid / X depth treatment.
   const W = 393;
   const H = 852;
   const cx = W / 2;
+  // Center between the headline block (ends ~y 410) and the share pill
+  // (top ~y 780). Onest's "$" glyph renders much taller than its em-square,
+  // so we shrink + center conservatively — the $ sits cleanly in the lower
+  // half without touching the supporting copy or the share button.
   const cy = H * 0.66;
-  const fontSize = 460;
+  const fontSize = 300;
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
@@ -715,7 +725,12 @@ function DollarSign({ primary, secondary, bg }: { primary: string; secondary: st
 
 function CollageBlocks({ primary, secondary, bg }: { primary: string; secondary: string; bg: string }) {
   // Drake-style share card — abstract chunky shapes scattered around the
-  // edges. Keeps the center clear for the recap text.
+  // edges. Carefully kept OUT of:
+  //   - the story chrome zone (y 0–110: status bar, progress, Spotify row)
+  //   - the central content corridor x ~70–323 where the hero square +
+  //     brand/genre list + stats live
+  //   - the share button footprint (centered at bottom ~y 800–836)
+  // Shapes hug the side edges and tuck into the corners.
   const W = 393;
   const H = 852;
   return (
@@ -725,41 +740,49 @@ function CollageBlocks({ primary, secondary, bg }: { primary: string; secondary:
       style={{ width: "100%", height: "100%", display: "block" }}
     >
       <rect width={W} height={H} fill={bg} />
-      {/* top-left squiggle (yellow) */}
+      {/* left-edge squiggle (yellow) — sits just below chrome, hugs the left
+          side so it doesn't cross the centered hero square. */}
       <path
-        d="M -10 90 Q 40 40, 90 90 T 190 90 T 290 90"
+        d="M -16 140 Q 18 110, 52 140 T 120 140"
         stroke={primary}
-        strokeWidth={18}
+        strokeWidth={16}
         strokeLinecap="round"
         fill="none"
-        opacity={0.85}
+        opacity={0.9}
       />
-      {/* top-right chunky cross */}
-      <g transform="translate(310 40) rotate(15)">
-        <rect x={-6} y={-32} width={12} height={64} fill={secondary} />
-        <rect x={-32} y={-6} width={64} height={12} fill={secondary} />
+      {/* right-edge chunky cross — pushed below chrome (y > 120) and toward
+          the right edge so it never overlaps the pause/mute/close icons. */}
+      <g transform="translate(348 150) rotate(15)">
+        <rect x={-5} y={-26} width={10} height={52} fill={secondary} />
+        <rect x={-26} y={-5} width={52} height={10} fill={secondary} />
       </g>
-      {/* mid-left dot */}
-      <circle cx={32} cy={420} r={18} fill={primary} opacity={0.9} />
-      {/* mid-right squiggle */}
+      {/* left-edge dot — vertical mid-card, hugged to the edge so the brand
+          list (which starts ~x 36) sits clear. */}
+      <circle cx={20} cy={520} r={14} fill={primary} opacity={0.85} />
+      {/* right-edge squiggle — slid further right and DOWN past the brands /
+          genres list (which ends ~y 540) and the stats row. */}
       <path
-        d="M 360 420 Q 330 390, 320 420 T 300 440"
+        d="M 372 600 Q 350 575, 340 600 T 320 618"
         stroke={primary}
-        strokeWidth={8}
+        strokeWidth={7}
         strokeLinecap="round"
         fill="none"
+        opacity={0.9}
       />
-      {/* bottom-left zigzag */}
+      {/* bottom-left zigzag — tucked into the corner below the footer line
+          (footer text sits ~y 790), kept off the share button (centered). */}
       <path
-        d="M 12 775 L 38 745 L 64 775 L 90 745 L 116 775"
+        d="M 14 822 L 36 800 L 58 822 L 80 800 L 102 822"
         stroke={secondary}
-        strokeWidth={8}
+        strokeWidth={7}
         strokeLinecap="round"
         strokeLinejoin="round"
         fill="none"
+        opacity={0.9}
       />
-      {/* bottom-right star burst */}
-      <g transform="translate(330 785)">
+      {/* bottom-right starburst — hugged into the corner, smaller radius so
+          it doesn't reach into the share-pill zone. */}
+      <g transform="translate(352 820)">
         {Array.from({ length: 8 }).map((_, i) => {
           const a = (i / 8) * Math.PI * 2;
           return (
@@ -767,10 +790,10 @@ function CollageBlocks({ primary, secondary, bg }: { primary: string; secondary:
               key={i}
               x1={0}
               y1={0}
-              x2={Math.cos(a) * 22}
-              y2={Math.sin(a) * 22}
+              x2={Math.cos(a) * 18}
+              y2={Math.sin(a) * 18}
               stroke={secondary}
-              strokeWidth={5}
+              strokeWidth={4.5}
               strokeLinecap="round"
             />
           );
@@ -1066,6 +1089,75 @@ function ShareButton({
       </svg>
       <span style={{ color: stroke === fg ? fg : fg }}>{label}</span>
     </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BrandTile — logo placeholder container used on cards that name brands. The
+// real product would swap a logo asset in; the demo shows a chunky letterform
+// inside a tinted square that reads as a deliberately-empty image slot.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function BrandTile({
+  brand,
+  size = "sm",
+  fg,
+  cardBg,
+}: {
+  brand: string;
+  /** sm = chip row on Card 3; lg = album-cover-sized hero on Card 4. */
+  size?: "sm" | "lg";
+  /** Text/foreground color of the *card* — used as the tile fill so the tile
+   *  reads as a clean knockout against the card's bright pattern. */
+  fg: string;
+  /** Card's pattern bg — used as the tile's *text* color so the letter pops. */
+  cardBg: string;
+}) {
+  const isLg = size === "lg";
+  const tileSize = isLg ? 152 : 78;
+  // For sm chips, scale down very long single-word brands ("Progressive",
+  // "Microsoft Copilot") so they fit on one or two clean lines without
+  // mid-word hyphenation. Length is the longest single token.
+  const longestTokenLen = Math.max(...brand.split(/\s+/).map((t) => t.length));
+  const smFontSize = longestTokenLen >= 11 ? 10 : longestTokenLen >= 8 ? 11 : 12;
+  const fontSize = isLg ? 32 : smFontSize;
+  return (
+    <div
+      style={{
+        width: tileSize,
+        height: tileSize,
+        background: fg,
+        color: cardBg,
+        borderRadius: isLg ? 6 : 4,
+        display: "grid",
+        placeItems: "center",
+        padding: isLg ? 14 : 8,
+        boxShadow: isLg
+          ? "0 4px 0 rgba(0,0,0,0.18)"
+          : "0 2px 0 rgba(0,0,0,0.14)",
+        flexShrink: 0,
+      }}
+      aria-label={`Logo placeholder for ${brand}`}
+    >
+      <span
+        style={{
+          fontFamily: FONT_DISPLAY,
+          fontWeight: 900,
+          fontSize,
+          letterSpacing: "-0.02em",
+          lineHeight: 1.05,
+          textAlign: "center",
+          // Break only on whitespace — "Progressive" stays whole instead of
+          // hyphenating to "Progress / ive"; multi-word names ("Liberty
+          // Mutual") still wrap cleanly at the space.
+          wordBreak: "normal",
+          overflowWrap: "normal",
+          hyphens: "none",
+        }}
+      >
+        {brand}
+      </span>
+    </div>
   );
 }
 
@@ -1368,10 +1460,25 @@ function Card2TopGenre({ persona, theme }: { persona: Persona; theme: CardTheme 
         <h1 style={{ ...HEADLINE_STYLE, color: theme.fg, fontSize: 56, marginTop: 8 }}>
           {persona.topGenre}
         </h1>
-        <p style={{ ...SUB_STYLE, color: theme.fg, fontSize: 16, fontWeight: 600, marginTop: 22, maxWidth: 320, marginLeft: "auto", marginRight: "auto", lineHeight: 1.4 }}>
-          {persona.topGenreSub}
-        </p>
-        <p style={{ ...SUB_STYLE, color: theme.muted, fontSize: 14, fontWeight: 500, marginTop: 6 }}>
+        {/* 4-brand logo-placeholder row — visualizes the named advertisers
+            instead of leaving them as a wall of text. Sits between the
+            headline and the diamond pattern below. */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: 10,
+            marginTop: 22,
+            paddingLeft: 8,
+            paddingRight: 8,
+          }}
+        >
+          {persona.topGenreBrands.slice(0, 4).map((b) => (
+            <BrandTile key={b} brand={b} size="sm" fg={theme.fg} cardBg={theme.bg} />
+          ))}
+        </div>
+        <p style={{ ...SUB_STYLE, color: theme.muted, fontSize: 14, fontWeight: 500, marginTop: 14 }}>
           {persona.topGenreDetail}
         </p>
       </div>
@@ -1390,17 +1497,20 @@ function Card3TopBrand({ persona, theme }: { persona: Persona; theme: CardTheme 
         <h2 style={{ ...SUB_STYLE, fontSize: 22, fontWeight: 800, color: theme.fg, letterSpacing: "-0.01em" }}>
           Your #1 of the year
         </h2>
-        <h1 style={{ ...HEADLINE_STYLE, color: theme.fg, fontSize: 56, marginTop: 10 }}>
-          {persona.topBrand}
-        </h1>
-        <p style={{ ...SUB_STYLE, color: theme.fg, fontSize: 20, fontWeight: 700, marginTop: 14 }}>
+        {/* Album-cover-style logo placeholder — mirrors Wrapped's "top
+            artist" treatment where the artist photo sits in a large square
+            above the supporting stats. */}
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 14 }}>
+          <BrandTile brand={persona.topBrand} size="lg" fg={theme.fg} cardBg={theme.bg} />
+        </div>
+        <p style={{ ...SUB_STYLE, color: theme.fg, fontSize: 20, fontWeight: 700, marginTop: 18 }}>
           {persona.topBrandSpots} plays
         </p>
-        <p style={{ ...SUB_STYLE, color: theme.fg, fontSize: 16, fontWeight: 600, fontStyle: "italic", marginTop: 26, maxWidth: 300, marginLeft: "auto", marginRight: "auto", lineHeight: 1.35 }}>
+        <p style={{ ...SUB_STYLE, color: theme.fg, fontSize: 16, fontWeight: 600, fontStyle: "italic", marginTop: 18, maxWidth: 300, marginLeft: "auto", marginRight: "auto", lineHeight: 1.35 }}>
           "{persona.jingleLyric}"
         </p>
         {persona.topBrandHook && (
-          <p style={{ ...SUB_STYLE, color: theme.muted, fontSize: 14, fontWeight: 500, marginTop: 12, maxWidth: 300, marginLeft: "auto", marginRight: "auto", lineHeight: 1.4 }}>
+          <p style={{ ...SUB_STYLE, color: theme.muted, fontSize: 14, fontWeight: 500, marginTop: 10, maxWidth: 300, marginLeft: "auto", marginRight: "auto", lineHeight: 1.4 }}>
             {persona.topBrandHook}
           </p>
         )}
