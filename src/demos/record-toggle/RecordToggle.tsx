@@ -129,6 +129,12 @@ const RECORD_SHADOW: [number, number, number] = [2, 5, 0.36];
 type SoundHint = "auto" | "always" | "off";
 const HINT_SEEN_KEY = "record-toggle:sound-hint-seen";
 const HINT_MS = 3800;
+/**
+ * Lead-in: the blank groove between the needle landing and the music. Real
+ * records give it a second or two; here it's a beat of crackle so the drop
+ * reads, without making the switch feel slow.
+ */
+const LEAD_IN_MS = 100;
 
 const IS_IOS =
   typeof navigator !== "undefined" &&
@@ -417,7 +423,9 @@ export function RecordToggle() {
   const [trackId, setTrackId] = useState<TrackId>("martini");
   const [size, setSize] = useState(0.6);
   const [params, setParams] = useState<Params>({
-    spinUp: 0.8,
+    // Long enough that the needle lands mid spin-up (~70% speed), so the
+    // music audibly settles into tempo — a touch exaggerated, still believable
+    spinUp: 1.3,
     spinDown: 0.8,
     offDelay: 0.04,
     rpm: 100 / 3,
@@ -644,6 +652,7 @@ export function RecordToggle() {
     let motorP = 1; // progress through the current up/down curve
     let needleDown = false;
     let offAt = 0; // when the motor was last switched off (ms)
+    let needleAt = 0; // when the needle last landed (ms)
     let hintUntil = 0; // iOS sound-check hint visible until (ms)
     let spin = 0; // degrees
     let brake = 0; // 0..1, hand on the record
@@ -672,10 +681,12 @@ export function RecordToggle() {
       s.start();
     };
 
-    // Music runs whenever the platter turns (motor on, or still coasting), so
-    // the spin-up and wind-down are heard end to end. Gain tracks platter
-    // speed — a cartridge's output is proportional to groove velocity — so
-    // it swells out of silence and sinks back into it.
+    // Like a real turntable: the platter spins up silently, and the music
+    // only starts once the needle is in the groove (after a beat of lead-in),
+    // so you hear the last of the spin-up settle into tempo. Stopping is the
+    // reverse of real-life etiquette on purpose: the music keeps playing as
+    // the platter coasts down — the wind-down is the signature moment. Gain
+    // tracks platter speed (a cartridge's output follows groove velocity).
     const startMusic = () => {
       const a = audio.current;
       if (!a || !a.music || a.src) return;
@@ -713,6 +724,7 @@ export function RecordToggle() {
       const a = audio.current;
       if (!a) return;
       playOneShot(a.drop, 0.5);
+      needleAt = performance.now();
       // Feel the needle land (may be ignored outside a user gesture)
       if (paramsRef.current.haptics) iosHaptic();
       // iOS: the needle drop doubles as a sound check — say so, once
@@ -790,9 +802,9 @@ export function RecordToggle() {
       const armAngT = G.restDeg * (1 - armReach(knob.x));
       // Needle: only on a committed, settled record. Lifts the moment the
       // state flips or a hand takes the record.
-      const settled = wantOn && !drag && knob.x > 0.97 && Math.abs(armAng.x) < 1.5;
+      const settled = wantOn && !drag && knob.x > 0.95 && Math.abs(armAng.x) < 6;
       const armLiftT = settled ? 0 : 1;
-      if (!needleDown && settled && armLift.x < 0.08) {
+      if (!needleDown && settled && armLift.x < 0.15) {
         needleDown = true;
         onNeedleDown();
       } else if (needleDown && armLift.x > 0.5) {
@@ -814,8 +826,8 @@ export function RecordToggle() {
         else stepSpring(knob, knobT, 260, 27, dt);
         if (homing) stepSpring(morph, knobT, 95, 19, dt);
         else stepSpring(morph, knobT, 200, 26, dt);
-        stepSpring(armAng, armAngT, 600, 48, dt);
-        stepSpring(armLift, armLiftT, 520, 44, dt);
+        stepSpring(armAng, armAngT, 900, 60, dt);
+        stepSpring(armLift, armLiftT, 950, 60, dt); // quick, decisive cue-lever drop
         stepSpring(press, pressRef.current ? 1 : 0, 700, 42, dt);
         stepSpring(nowPlaying, needleDown && !!audio.current?.src ? 1 : 0, 110, 21, dt);
         stepSpring(hint, needleDown && now < hintUntil ? 1 : 0, 90, 19, dt);
@@ -844,9 +856,9 @@ export function RecordToggle() {
       if (a) {
         const t = a.ctx.currentTime;
         const rate = Math.max(0.001, speed);
-        const turning = motorOn || speed > 0.004;
-        if (turning && !a.src) startMusic();
-        else if (!turning && a.src) stopMusic();
+        const inGroove = needleDown && now - needleAt >= LEAD_IN_MS;
+        if (motorOn && inGroove && !a.src) startMusic();
+        else if (!motorOn && speed <= 0.004 && a.src) stopMusic();
         if (a.src) {
           playhead.current += speed * frameDt;
           a.src.playbackRate.setTargetAtTime(rate, t, 0.012);
