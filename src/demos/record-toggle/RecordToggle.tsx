@@ -129,8 +129,6 @@ const RECORD_SHADOW: [number, number, number] = [2, 5, 0.36];
 type SoundHint = "auto" | "always" | "off";
 const HINT_SEEN_KEY = "record-toggle:sound-hint-seen";
 const HINT_MS = 3800;
-/** Longest the motor waits for audio to wake/decode before spinning anyway */
-const MOTOR_WAIT_MS = 700;
 
 const IS_IOS =
   typeof navigator !== "undefined" &&
@@ -646,7 +644,6 @@ export function RecordToggle() {
     let motorP = 1; // progress through the current up/down curve
     let needleDown = false;
     let offAt = 0; // when the motor was last switched off (ms)
-    let onAt = 0; // when the motor was last switched on (ms)
     let hintUntil = 0; // iOS sound-check hint visible until (ms)
     let spin = 0; // degrees
     let brake = 0; // 0..1, hand on the record
@@ -771,20 +768,12 @@ export function RecordToggle() {
       // ── Motor ────────────────────────────────────────────
       if (wantOn !== motorOn) {
         motorOn = wantOn;
-        if (motorOn) onAt = now;
         // A drag that commits off already lifted the needle — no beat needed
         if (!motorOn) offAt = skipOffDelay.current ? -Infinity : now;
         skipOffDelay.current = false;
         motorP = motorOn ? invert(upCurve, speed, true) : invert(downCurve, speed, false);
       }
-      // The wind-up is the moment — don't spend it in silence. The first tap
-      // wakes a suspended AudioContext (tens to hundreds of ms, longer on
-      // iOS) and the track may still be decoding, so hold the motor at its
-      // current speed until audio can actually play, up to a short cap.
-      const ac = audio.current;
-      const audioReady = !ac || (ac.ctx.state === "running" && !!ac.music);
-      const holdMotor = motorOn && !audioReady && now - onAt < MOTOR_WAIT_MS;
-      if (!holdMotor) motorP = Math.min(1, motorP + frameDt / (motorOn ? P.spinUp : P.spinDown));
+      motorP = Math.min(1, motorP + frameDt / (motorOn ? P.spinUp : P.spinDown));
       speed = motorOn ? upCurve(motorP) : downCurve(motorP);
       const drag = dragRef.current?.moved ? dragRef.current : null;
       brake += ((drag?.fromOn ? drag.pull : 0) - brake) * Math.min(1, frameDt * 18);

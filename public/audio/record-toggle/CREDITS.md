@@ -1,7 +1,8 @@
 # Record Toggle — audio credits
 
 All three tracks are by Kevin MacLeod. Files here are 150 s loudness-normalised
-excerpts re-encoded to 128 kbps MP3.
+excerpts re-encoded to 128 kbps MP3, with leading silence trimmed so the first
+play's wind-up lands on music (it only plays the first ~0.5 s of the file).
 
 | File | Track | Artist | Licence | Source |
 | --- | --- | --- | --- | --- |
