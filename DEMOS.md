@@ -55,9 +55,21 @@ Demos that have gone out on at least one channel. No demos are *Live* in the Arc
 | 7 | Fisheye Text | `/fisheye-text` | Craft | — | In progress |
 | 8 | Spotify DJ Call-In | `/spotify-dj` | Witty | @Soren, @Spotify | In progress |
 | 9 | Spotify Wrapped for Ads | `/spotify-wrapped-ads` | Witty | @Soren, @Spotify | In progress |
+| 10 | Record Toggle | `/record-toggle` | Craft | — | In progress |
 | flex | Companion Zoo | `/companion-zoo` | Witty | — | Deferred |
 
 Ordering principles: lead the next Ready batch with @Soren/@Figma to break the recent craft streak, then close out with the two strongest tagged pieces (Git Toggle @GitHub, Glass Pull @Gavin Nelson). Spotify Wrapped is held for the finale.
+
+### Record Toggle — before Ready / Arcade promotion
+
+Open items from the staff review (2026-10-01):
+
+- **Licensing.** Default track is now *Martini Sunset* (Kevin MacLeod, CC0 via FreePD) — no credit required. *Smooth Lovin'* (CC BY 3.0) is still in the picker; if it's ever used on camera, credit it in the post with title, author, source and licence. Sources and licences for every track are in `public/audio/record-toggle/CREDITS.md`.
+- **Trim the dev panel.** It has 16 controls; the tuning-only ones (Off delay, Arm fade size, Breath detail, Fade in, Vinyl detail) can become named constants, and the unused glow variants (Spectrum, Breath → Layers) can be cut, since demo panels ship to production.
+- **Perf on mobile.** The loop still writes styles every frame while idle; add an early-out when springs are settled, speed is 0 and the glow is dark. The blurred arm shadow re-filters every frame during playback (warp); consider moving the warp to the body only.
+- **Asset weight.** ~2.4 MB per mp3; decoded buffers are ~55 MB each on iOS. Consider shorter loops or mono before promotion.
+- **Spring/threshold constants.** Move the approved stiffness/damping pairs and arm/needle thresholds into a named table so they port to the portfolio intact.
+- **Device checks (iPhone).** Verify drag-to-on audio unlock; that the silent switch doesn't mute playback (`navigator.audioSession`); that the `<input switch>` haptic fires on toggle and at the needle drop (iOS 18+, undocumented); and how the first-play "Ringer on" hint reads.
 
 ## Internal
 
