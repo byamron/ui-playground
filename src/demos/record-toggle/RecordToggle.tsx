@@ -188,6 +188,8 @@ interface Params {
   glowToneLight: number;
   glowFadeIn: number;
   breathDetail: number;
+  /** Lifts the upper bands so the top of the rim answers the highs */
+  trebleBoost: number;
   breathStyle: BreathStyle;
   armScaleMin: number;
   grain: number;
@@ -437,6 +439,7 @@ export function RecordToggle() {
     glowToneLight: 32,
     glowFadeIn: 2,
     breathDetail: 0.6,
+    trebleBoost: 1.4,
     breathStyle: "blend",
     armScaleMin: 0.9,
     grain: 0.2,
@@ -1003,7 +1006,10 @@ export function RecordToggle() {
                   sum += freq[Math.min(freq.length - 1, Math.round(hz / binHz))] / 255;
                   n++;
                 }
-                bands[bi] = Math.pow(sum / Math.max(1, n), 2.2) * BREATH_TILT[bi];
+                // Treble boost: a gentler curve (quiet highs still register)
+                // and more gain, scaling up the band ladder
+                const lift = (bi / (BREATH_BANDS.length - 1)) * P.trebleBoost;
+                bands[bi] = Math.pow(sum / Math.max(1, n), 2.2 - 0.6 * lift) * BREATH_TILT[bi] * (1 + 0.5 * lift);
               }
             }
 
@@ -1042,7 +1048,8 @@ export function RecordToggle() {
                   const hz = 55 * Math.pow(7000 / 55, u);
                   const bin = Math.min(freq.length - 1, Math.round(hz / binHz));
                   // Tilt: treble is quieter, give it a gentle lift
-                  v = Math.pow(freq[bin] / 255, 2.4) * (0.85 + 0.6 * u);
+                  const lift = u * P.trebleBoost;
+                  v = Math.pow(freq[bin] / 255, 2.4 - 0.6 * lift) * (0.85 + 0.6 * u) * (1 + 0.4 * lift);
                 } else {
                   // Detail blends in the broad bands, cosine-interpolated between
                   // their centres so the glow shifts shape without breaking up.
@@ -1052,7 +1059,9 @@ export function RecordToggle() {
                   const w = 0.5 - 0.5 * Math.cos(Math.PI * t);
                   const broad = bands[i0] + (bands[i0 + 1] - bands[i0]) * w;
                   const d = P.breathDetail;
-                  v = (1 - d) * bass * (1.05 - 0.55 * u) + d * broad * (1.05 - 0.35 * u);
+                  // Treble boost also flattens the bottom-heavy falloff
+                  const fall = 1 - 0.6 * Math.min(1, P.trebleBoost);
+                  v = (1 - d) * bass * (1.05 - 0.55 * u * fall) + d * broad * (1.05 - 0.35 * u * fall);
                 }
                 // Fast attack, slow release — reads as light, not as a meter.
                 // Reduced motion: a slow, near-steady glow instead of pulsing.
@@ -1199,7 +1208,17 @@ export function RecordToggle() {
           />
           <DevDivider />
           <DevSectionLabel>Motor</DevSectionLabel>
-          <DevSlider label="Spin up (s)" value={params.spinUp} min={0.3} max={3} step={0.05} onChange={(v) => set("spinUp", v)} />
+          <DevSlider
+            label="Wind-up"
+            value={params.spinUp}
+            // 0.55 s: the platter is at speed when the needle lands (music in
+            // at ~99%, just a settle) · 1.0 s: music in at ~84%, an audible lift
+            min={0.55}
+            max={1}
+            step={0.05}
+            format={(v) => (v <= 0.55 ? "real" : `${v.toFixed(2)}s`)}
+            onChange={(v) => set("spinUp", v)}
+          />
           <DevSlider label="Wind down (s)" value={params.spinDown} min={0.15} max={3} step={0.05} onChange={(v) => set("spinDown", v)} />
           <DevSlider label="Off delay (s)" value={params.offDelay} min={0} max={0.6} step={0.02} onChange={(v) => set("offDelay", v)} />
           <DevButtonGroup
@@ -1246,6 +1265,7 @@ export function RecordToggle() {
           {params.glow === "breath" && params.breathStyle === "blend" && (
             <DevSlider label="Breath detail" value={params.breathDetail} min={0} max={1} step={0.05} onChange={(v) => set("breathDetail", v)} />
           )}
+          <DevSlider label="Treble sensitivity" value={params.trebleBoost} min={0} max={2} step={0.05} onChange={(v) => set("trebleBoost", v)} />
           <DevSlider label="Fade in (s)" value={params.glowFadeIn} min={0} max={4} step={0.1} onChange={(v) => set("glowFadeIn", v)} />
           <DevSlider label="Intensity · dark" value={params.glowDark} min={0} max={1.6} step={0.05} onChange={(v) => set("glowDark", v)} />
           <DevSlider label="Intensity · light" value={params.glowLight} min={0} max={6} step={0.1} onChange={(v) => set("glowLight", v)} />
