@@ -137,4 +137,5 @@ export const demoPalettes = {
   "page-transition": { hue: HUES.gold, mode: "light" as const, intensity: 0 as const },
   "git-toggle": { hue: HUES.violet, mode: "dark" as const, intensity: 1 as const },
   "flock": { hue: HUES.sky, mode: "light" as const, intensity: 0 as const },
+  "record-toggle": { hue: HUES.ember, mode: "dark" as const, intensity: 0 as const },
 } as const;

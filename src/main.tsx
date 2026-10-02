@@ -22,6 +22,7 @@ import { GithubSparkline } from "./demos/github-sparkline/GithubSparkline";
 import { PageTransition } from "./demos/page-transition/PageTransition";
 import { GitToggle } from "./demos/git-toggle/GitToggle";
 import { Flock } from "./demos/flock/Flock";
+import { RecordToggle } from "./demos/record-toggle/RecordToggle";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -47,6 +48,7 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/page-transition" element={<PageTransition />} />
         <Route path="/git-toggle" element={<GitToggle />} />
         <Route path="/flock" element={<Flock />} />
+        <Route path="/record-toggle" element={<RecordToggle />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>

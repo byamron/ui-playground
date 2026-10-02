@@ -172,6 +172,15 @@ export const galleryDemos: GalleryDemo[] = [
     family: "Sorenidae",
     catalogue: "SOR·007",
   },
+  {
+    path: "/record-toggle",
+    title: "Record Toggle",
+    description:
+      "A switch for smooth jazz. The knob becomes a record and the needle drops.",
+    ...palette("record-toggle"),
+    family: "Mecanica inertia",
+    catalogue: "MEC·002",
+  },
 ];
 
 const ROMAN = [
