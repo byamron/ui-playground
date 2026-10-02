@@ -423,9 +423,9 @@ export function RecordToggle() {
   const [trackId, setTrackId] = useState<TrackId>("martini");
   const [size, setSize] = useState(0.6);
   const [params, setParams] = useState<Params>({
-    // Long enough that the needle lands mid spin-up (~70% speed), so the
-    // music audibly settles into tempo — a touch exaggerated, still believable
-    spinUp: 1.3,
+    // The needle lands near the end of spin-up (~75–80% speed), so the
+    // music settles into tempo — a hint of the effect, not a swoop
+    spinUp: 1.0,
     spinDown: 0.8,
     offDelay: 0.04,
     rpm: 100 / 3,
